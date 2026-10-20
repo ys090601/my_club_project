@@ -1,14 +1,13 @@
 import { db } from './firebase-config.js';
 import { checkAuth } from './auth.js';
 import { 
-  collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, setDoc, query, where, serverTimestamp 
+  collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, setDoc, query, where, orderBy, serverTimestamp 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 let currentUser = null;
 let currentEvent = null;
 let currentDate = new Date();
 
-// 한국 법정 공휴일
 const HOLIDAYS = {
   fixed: {
     "01-01": "신정", "03-01": "삼일절", "05-05": "어린이날", "06-06": "현충일",
@@ -42,8 +41,22 @@ checkAuth((userData) => {
     document.getElementById('adminBtn').style.display = 'inline-block';
   }
   
+  loadPinnedNotice();
   renderCalendar();
 });
+
+// 메인 고정 공지사항 불러오기
+async function loadPinnedNotice() {
+  const q = query(collection(db, "notices"), where("isPinned", "==", true));
+  const snap = await getDocs(q);
+  
+  if (!snap.empty) {
+    const pinned = snap.docs[0].data();
+    document.getElementById('pinnedNoticeTitle').innerText = `📌 ${pinned.title}`;
+    document.getElementById('pinnedNoticeContent').innerText = pinned.content;
+    document.getElementById('mainPinnedNotice').style.display = 'block';
+  }
+}
 
 function isNewbieUser(approvedAt) {
   if (!approvedAt) return false;
@@ -137,7 +150,6 @@ async function openDetailModal(event) {
   document.getElementById('detailModal').classList.add('active');
 }
 
-// RSVP 리스트 로드 및 관리자 전용 성비 계산
 async function loadRSVPList() {
   const rsvpQuery = await getDocs(query(collection(db, "rsvps"), where("eventId", "==", currentEvent.id)));
   const pList = document.getElementById('participantList');
@@ -165,7 +177,6 @@ async function loadRSVPList() {
     }
   });
 
-  // 관리자인 경우에만 모임 성비 정보 표시
   if (currentUser && currentUser.role === 'admin') {
     const genderInfo = document.createElement('p');
     genderInfo.style.cssText = "font-size:12px; color:var(--primary-color); font-weight:bold; margin-top:5px;";
@@ -210,7 +221,7 @@ document.getElementById('btnAttend').onclick = async () => {
     currentEvent.currentCount = newCount;
     document.getElementById('modalCapacity').innerText = `${newCount} / ${currentEvent.maxParticipants}명`;
     
-    await updateDoc(doc(db, "users", currentUser.uid), {
+    await updateDoc(doc(doc(db, "users", currentUser.uid)), {
       joinCount: (currentUser.joinCount || 0) + 1
     });
   }

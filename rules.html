@@ -3,25 +3,155 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>소모임 - 공지사항 및 이용 규칙</title>
+  <title>소모임 - 공지사항 및 규칙</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <div class="container">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-      <h1>소모임 이용 수칙 및 가이드</h1>
-      <a href="index.html" class="btn">메인으로</a>
+    <!-- 상단 헤더 -->
+    <div class="header-bar">
+      <div>
+        <h1>📢 소모임 공지사항 & 운영 규칙</h1>
+        <p style="font-size:12px; color:var(--subtext-color);">클린하고 즐거운 모임을 위한 필수 안내 사항입니다.</p>
+      </div>
+      <div class="btn-group">
+        <select id="themeSelector" class="theme-select">
+          <option value="system">⚙️ 시스템 설정</option>
+          <option value="light">☀️ 밝은 모드</option>
+          <option value="dark">🌙 어두운 모드</option>
+        </select>
+        <button id="openNoticeModalBtn" class="btn btn-success" style="display:none;">+ 공지 등록/수정</button>
+        <a href="index.html" class="btn btn-secondary">메인으로</a>
+      </div>
     </div>
 
-    <div style="background:#f1f5f9; padding:20px; border-radius:8px; line-height:1.8;">
-      <h3>📌 회원 준수 가이드</h3>
-      <ol style="padding-left:20px; margin-top:10px;">
-        <li><strong>표시명 규칙:</strong> 웹페이지 내 사용자는 <code>이름/출생연도/지역</code> (예: 홍길동/95/서울)으로 표기됩니다.</li>
-        <li><strong>신규 회원 우대 혜택:</strong> 가입 후 1달 동안은 모임 정원이 차더라도 +2명까지 우선 참석 신청이 가능합니다.</li>
-        <li><strong>1일 1일정 원칙:</strong> 동일한 날짜의 모임 추가 생성은 관리자 승인 후 개설됩니다.</li>
-        <li><strong>참석 취소 매너:</strong> 모임 시작 24시간 전까지만 취소가 가능하며, 무단 불참 시 페널티가 부여될 수 있습니다.</li>
-      </ol>
+    <!-- 기본 운영 규칙 안내 카드 -->
+    <div style="background:var(--table-header-bg); padding:16px; border-radius:8px; margin-bottom:20px; border-left:4px solid var(--primary-color);">
+      <h3 style="margin-bottom:8px;">📌 기본 운영 규칙 (필독)</h3>
+      <ul style="font-size:13px; padding-left:20px; line-height:1.8;">
+        <li><strong>1인 1일정 준수:</strong> 동일 날짜에 중복 일정을 등록하거나 참석할 수 없습니다.</li>
+        <li><strong>신입 회원 우대:</strong> 가입 승인 후 30일 이내 신입 회원은 모임 정원 +2명 우대 혜택을 받습니다.</li>
+        <li><strong>매너 취소:</strong> 모임 시작 24시간 이내 취소 시에는 반드시 **취소 사유**를 적어야 합니다.</li>
+        <li><strong>닉네임 통일:</strong> 서비스 이용 시 `이름/연도/지역` 표시명이 사용되니 타인에게 불쾌감을 주는 행동은 삼가주세요.</li>
+      </ul>
+    </div>
+
+    <!-- 등록된 공지사항 목록 -->
+    <h3>📢 주요 공지사항</h3>
+    <div id="noticeList" style="margin-top:10px;">
+      <p style="color:var(--subtext-color); font-size:13px;">공지사항을 불러오는 중...</p>
     </div>
   </div>
+
+  <!-- 관리자 전용 공지 등록/수정 모달 -->
+  <div id="noticeModal" class="modal-overlay">
+    <div class="modal-content">
+      <h2>공지사항 등록/수정</h2>
+      <form id="noticeForm">
+        <div class="form-group">
+          <label>공지 제목</label>
+          <input type="text" id="noticeTitle" required placeholder="예: 10월 정기 모임 장소 안내">
+        </div>
+        <div class="form-group">
+          <label>공지 내용</label>
+          <textarea id="noticeContent" rows="5" required placeholder="공지할 내용을 상세히 입력하세요."></textarea>
+        </div>
+        <div class="form-group" style="display:flex; align-items:center; gap:8px;">
+          <input type="checkbox" id="noticeIsPinned" style="width:auto;">
+          <label for="noticeIsPinned" style="margin:0; cursor:pointer;">📌 메인 화면 상단 배너에 고정 노출하기</label>
+        </div>
+        <button type="submit" class="btn btn-success" style="width:100%;">저장하기</button>
+        <button type="button" class="btn btn-secondary closeModal" style="width:100%; margin-top:6px;">취소</button>
+      </form>
+    </div>
+  </div>
+
+  <script type="module">
+    import { db } from './js/firebase-config.js';
+    import { checkAuth } from './js/auth.js';
+    import { 
+      collection, addDoc, getDocs, doc, deleteDoc, query, orderBy, serverTimestamp 
+    } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    let currentUser = null;
+
+    checkAuth(async (userData) => {
+      currentUser = userData;
+      if (userData.role === 'admin') {
+        document.getElementById('openNoticeModalBtn').style.display = 'inline-block';
+      }
+      loadNotices();
+    });
+
+    // 공지사항 목록 로드
+    async function loadNotices() {
+      const noticeListEl = document.getElementById('noticeList');
+      noticeListEl.innerHTML = '';
+
+      const q = query(collection(db, "notices"), orderBy("createdAt", "desc"));
+      const snap = await getDocs(q);
+
+      if (snap.empty) {
+        noticeListEl.innerHTML = '<p style="color:var(--subtext-color); font-size:13px;">등록된 공지사항이 없습니다.</p>';
+        return;
+      }
+
+      snap.forEach(docSnap => {
+        const n = docSnap.data();
+        const nId = docSnap.id;
+        const regDate = n.createdAt ? new Date(n.createdAt.toDate()).toLocaleDateString() : '-';
+
+        noticeListEl.innerHTML += `
+          <div style="background:var(--card-bg); border:1px solid var(--border-color); padding:15px; border-radius:8px; margin-bottom:12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <h4 style="font-size:15px;">${n.isPinned ? '📌 ' : ''}${n.title}</h4>
+              <span style="font-size:11px; color:var(--subtext-color);">${regDate}</span>
+            </div>
+            <p style="font-size:13px; white-space:pre-wrap; line-height:1.6; color:var(--text-color);">${n.content}</p>
+            ${currentUser && currentUser.role === 'admin' ? `
+              <div style="text-align:right; margin-top:8px;">
+                <button class="btn btn-danger btn-sm" onclick="deleteNotice('${nId}')">삭제</button>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      });
+    }
+
+    // 공지 등록 제출
+    document.getElementById('noticeForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      await addDoc(collection(db, "notices"), {
+        title: document.getElementById('noticeTitle').value,
+        content: document.getElementById('noticeContent').value,
+        isPinned: document.getElementById('noticeIsPinned').checked,
+        createdBy: currentUser.name,
+        createdAt: serverTimestamp()
+      });
+
+      alert("공지사항이 등록되었습니다.");
+      document.getElementById('noticeModal').classList.remove('active');
+      document.getElementById('noticeForm').reset();
+      loadNotices();
+    });
+
+    window.deleteNotice = async (nId) => {
+      if (confirm("정말 이 공지사항을 삭제하시겠습니까?")) {
+        await deleteDoc(doc(db, "notices", nId));
+        alert("삭제되었습니다.");
+        loadNotices();
+      }
+    };
+
+    document.getElementById('openNoticeModalBtn').onclick = () => {
+      document.getElementById('noticeModal').classList.add('active');
+    };
+
+    document.querySelectorAll('.closeModal').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
+      };
+    });
+  </script>
 </body>
 </html>
