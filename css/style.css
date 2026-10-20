@@ -1,11 +1,14 @@
-/* 공통 스타일 및 반응형 레이아웃 */
-* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif; }
-body { background-color: #f8f9fa; color: #333; line-height: 1.6; padding: 20px; }
-.container { max-width: 900px; margin: 0 auto; background: #fff; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
-h1, h2, h3 { color: #2c3e50; margin-bottom: 15px; }
+/* 공통 스타일 및 리셋 */
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+body { background-color: #f8f9fa; color: #333; line-height: 1.6; padding: 15px; }
+.container { max-width: 900px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+h1, h2, h3 { color: #2c3e50; margin-bottom: 12px; }
 
-/* 버튼 및 폼 스타일 */
-.btn { display: inline-block; padding: 10px 18px; border: none; border-radius: 6px; background: #3498db; color: #fff; cursor: pointer; font-weight: bold; text-decoration: none; margin-right: 5px; font-size: 14px; }
+/* 상단 헤더 및 버튼 */
+.header-bar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 15px; }
+.btn-group { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.btn { display: inline-block; padding: 9px 14px; border: none; border-radius: 6px; background: #3498db; color: #fff; cursor: pointer; font-weight: bold; text-decoration: none; font-size: 13px; text-align: center; }
 .btn-danger { background: #e74c3c; }
 .btn-success { background: #2ecc71; }
 .btn-warning { background: #f1c40f; color: #333; }
@@ -13,28 +16,45 @@ h1, h2, h3 { color: #2c3e50; margin-bottom: 15px; }
 .btn:hover { opacity: 0.9; }
 
 .form-group { margin-bottom: 15px; }
-.form-group label { display: block; margin-bottom: 5px; font-weight: 600; font-size: 14px; }
+.form-group label { display: block; margin-bottom: 5px; font-weight: 600; font-size: 13px; }
 .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
 
+/* 동적 캘린더 헤더 컨트롤 */
+.calendar-controller { display: flex; justify-content: space-between; align-items: center; margin: 15px 0; background: #f1f5f9; padding: 10px 15px; border-radius: 8px; }
+.calendar-controller h2 { margin: 0; font-size: 18px; color: #1e293b; }
+
 /* 캘린더 그리드 */
-.calendar-header { display: flex; justify-content: space-between; align-items: center; margin: 20px 0; }
-.calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
-.calendar-day-header { font-weight: bold; text-align: center; padding: 8px; background: #eee; border-radius: 4px; font-size: 13px; }
-.calendar-day { min-height: 100px; border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px; background: #fff; position: relative; }
-.calendar-day .date-num { font-size: 12px; font-weight: bold; color: #666; margin-bottom: 6px; }
-.event-chip { background: #ebf8ff; color: #2b6cb0; padding: 4px 6px; border-radius: 4px; font-size: 11px; margin-bottom: 4px; cursor: pointer; border-left: 3px solid #3182ce; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.event-chip.closed { background: #feebc8; color: #c05621; border-left-color: #dd6b20; }
+.calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.calendar-day-header { font-weight: bold; text-align: center; padding: 8px 2px; background: #e2e8f0; border-radius: 4px; font-size: 12px; color: #475569; }
+.calendar-day-header:first-child { color: #e74c3c; } /* 일요일 */
+.calendar-day-header:last-child { color: #3498db; }  /* 토요일 */
+
+.calendar-day { min-height: 90px; border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px; background: #fff; position: relative; display: flex; flex-direction: column; }
+.calendar-day.empty { background: #fafafa; border-color: #f1f5f9; }
+.calendar-day.today { background: #f0f9ff; border: 2px solid #3b82f6; }
+.calendar-day .date-num { font-size: 11px; font-weight: bold; color: #64748b; margin-bottom: 4px; }
+
+/* 일정 칩 */
+.event-chip { background: #e0f2fe; color: #0369a1; padding: 3px 5px; border-radius: 4px; font-size: 11px; margin-bottom: 3px; cursor: pointer; border-left: 3px solid #0284c7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.event-chip.closed { background: #ffedd5; color: #c2410c; border-left-color: #ea580c; }
 
 /* 모달 팝업 */
-.modal-overlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000; }
+.modal-overlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000; padding: 15px; }
 .modal-overlay.active { display: flex; }
-.modal-content { background: #fff; padding: 25px; border-radius: 10px; width: 90%; max-width: 520px; max-height: 90vh; overflow-y: auto; }
+.modal-content { background: #fff; padding: 20px; border-radius: 10px; width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
 
-/* 테이블 스타일 */
-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-th, td { padding: 10px; border: 1px solid #ddd; text-align: left; font-size: 13px; }
-th { background: #f1f5f9; }
-.badge { padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; color: #fff; }
-.badge-pending { background: #e67e22; }
-.badge-approved { background: #2ecc71; }
-.badge-paused { background: #9b59b6; }
+/* 모바일 전용 반응형 레이아웃 (Media Query) */
+@media (max-width: 768px) {
+  body { padding: 8px; }
+  .container { padding: 12px; }
+  .header-bar { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .header-bar > div { width: 100%; display: flex; justify-content: space-between; align-items: center; }
+  
+  .calendar-controller h2 { font-size: 16px; }
+  .calendar-day { min-height: 70px; padding: 2px; }
+  .calendar-day .date-num { font-size: 10px; margin-bottom: 2px; }
+  .event-chip { font-size: 10px; padding: 2px 3px; border-left-width: 2px; }
+  
+  .btn { padding: 8px 10px; font-size: 12px; }
+  .modal-content { padding: 15px; }
+}
