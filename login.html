@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>소모임 - 로그인 및 가입신청</title>
+  <title>소모임 - 로그인</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <div class="container" style="max-width: 450px; margin-top: 40px;">
+  <div class="container" style="max-width: 420px; margin-top: 60px;">
     <h2>소모임 로그인</h2>
     <form id="loginForm">
       <div class="form-group">
@@ -21,48 +21,9 @@
       <button type="submit" class="btn" style="width:100%;">로그인</button>
     </form>
 
-    <hr style="margin: 25px 0;">
-
-    <h2>신규 회원가입 신청</h2>
-    <form id="signupForm">
-      <div class="form-group">
-        <label>이메일 아이디</label>
-        <input type="email" id="signupEmail" required placeholder="user@example.com">
-      </div>
-      <div class="form-group">
-        <label>비밀번호 (6자리 이상)</label>
-        <input type="password" id="signupPassword" required minlength="6">
-      </div>
-      <div class="form-group">
-        <label>이름</label>
-        <input type="text" id="signupName" required placeholder="홍길동">
-      </div>
-      <div class="form-group">
-        <label>출생연도</label>
-        <input type="number" id="signupBirthYear" required placeholder="1995" min="1950" max="2010">
-      </div>
-      <div class="form-group">
-        <label>지역</label>
-        <select id="signupRegion" required>
-          <option value="">지역 선택</option>
-          <option value="서울">서울</option>
-          <option value="경기">경기</option>
-          <option value="인천">인천</option>
-          <option value="부산">부산</option>
-
-<option value="기타">기타</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>소모임 어플 닉네임</label>
-        <input type="text" id="signupNickname" required placeholder="어플 닉네임 입력">
-      </div>
-      <div class="form-group">
-        <label>인증키</label>
-        <input type="password" id="signupAuthKey" required placeholder="소모임 지정 인증키 입력">
-      </div>
-      <button type="submit" class="btn btn-success" style="width:100%;">가입 신청하기</button>
-    </form>
+    <div style="text-align: center; margin-top: 20px; font-size: 14px;">
+      아직 회원이 아니신가요? <a href="signup.html" style="color: #3498db; font-weight: bold; text-decoration: none;">회원가입 신청하기</a>
+    </div>
   </div>
 
   <script type="module" src="js/auth.js"></script>
