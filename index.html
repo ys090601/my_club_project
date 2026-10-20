@@ -26,7 +26,7 @@
       </div>
     </div>
 
-    <!-- 📌 메인 상단 주요 고정 공지 배너 -->
+    <!-- 주요 고정 공지 배너 -->
     <div id="mainPinnedNotice" style="display:none; background:#fffbeb; border:1px solid #fef3c7; color:#b45309; padding:12px 15px; border-radius:8px; margin-bottom:15px; font-size:13px;">
       <strong id="pinnedNoticeTitle">📌 주요 공지사항</strong>
       <p id="pinnedNoticeContent" style="margin-top:4px; font-size:12px; color:#78350f; white-space:pre-wrap;"></p>
@@ -46,9 +46,45 @@
 
     <!-- 동적 캘린더 그리드 -->
     <div id="calendar" class="calendar-grid"></div>
+
+    <!-- 📊 캘린더 아래 현황판 (5열 11행 2개 테이블 병렬 배치) -->
+    <h3 style="margin-top:35px; margin-bottom:10px; font-size:16px;">📋 모임 일정 현황판</h3>
+    <div class="dashboard-parallel-grid">
+      <!-- 테이블 1 (1~10번 모임) -->
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>날짜</th>
+              <th>모임일정명</th>
+              <th>벙주</th>
+              <th>인원현황(신입)</th>
+              <th>인원 증설 여부</th>
+            </tr>
+          </thead>
+          <tbody id="statusTableBody1"></tbody>
+        </table>
+      </div>
+
+      <!-- 테이블 2 (11~20번 모임) -->
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>날짜</th>
+              <th>모임일정명</th>
+              <th>벙주</th>
+              <th>인원현황(신입)</th>
+              <th>인원 증설 여부</th>
+            </tr>
+          </thead>
+          <tbody id="statusTableBody2"></tbody>
+        </table>
+      </div>
+    </div>
   </div>
 
-  <!-- 일정 등록 모달 (달력 클릭 및 가이드 양식 적용) -->
+  <!-- 일정 등록 모달 -->
   <div id="createModal" class="modal-overlay">
     <div class="modal-content">
       <h2>신규 모임 등록</h2>
@@ -58,12 +94,12 @@
           <input type="text" id="eventTitle" required placeholder="예: 10월 정기 정모">
         </div>
         <div class="form-group">
-          <label>날짜 및 시간 (클릭 시 달력 열림)</label>
+          <label>날짜 및 시간</label>
           <input type="datetime-local" id="eventDate" required onclick="this.showPicker()">
         </div>
         <div class="form-group">
-          <label>장소</label>
-          <input type="text" id="eventLocation" required placeholder="예: 강남역 2번 출구 맛집">
+          <label>집합장소</label>
+          <input type="text" id="eventLocation" required placeholder="예: 강남역 2번 출구 맛집 앞">
         </div>
         <div class="form-group">
           <label>기본 정원 (명)</label>
@@ -73,11 +109,43 @@
           <label>상세 일정</label>
           <textarea id="eventDesc" rows="5" required placeholder="[상세 일정 가이드]&#10;1차 : 강남 맛집 식사 (18:00)&#10;2차 : 볼링장 / 카페 이동 (20:00)&#10;회비 : 1/N (약 2~3만원)&#10;준비물 : 신분증, 매너"></textarea>
         </div>
-        <div class="form-group" id="openChatGroup" style="display:none;">
-          <label>오픈채팅방 URL (관리자 전용)</label>
-          <input type="url" id="eventOpenChat" placeholder="https://open.kakao.com/o/...">
-        </div>
         <button type="submit" class="btn btn-success" style="width:100%;">등록하기</button>
+        <button type="button" class="btn btn-secondary closeModal" style="width:100%; margin-top:6px;">취소</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 일정 수정 모달 (벙주: 날짜/시간, 집합장소, 상세설명 수정 가능) -->
+  <div id="editModal" class="modal-overlay">
+    <div class="modal-content">
+      <h2>모임 일정 수정</h2>
+      <form id="editEventForm">
+        <input type="hidden" id="editEventId">
+        <div class="form-group">
+          <label>모임명</label>
+          <input type="text" id="editEventTitle" readonly style="opacity:0.7;">
+        </div>
+        <div class="form-group">
+          <label>날짜 및 시간 (벙주/관리자 변경 가능)</label>
+          <input type="datetime-local" id="editEventDate" required onclick="this.showPicker()">
+        </div>
+        <div class="form-group">
+          <label>집합장소 (벙주/관리자 변경 가능)</label>
+          <input type="text" id="editEventLocation" required>
+        </div>
+        <div class="form-group" id="editMaxGroup">
+          <label>정원 (명)</label>
+          <input type="number" id="editEventMax" min="1">
+        </div>
+        <div class="form-group">
+          <label>상세 일정 (벙주/관리자 변경 가능)</label>
+          <textarea id="editEventDesc" rows="5" required></textarea>
+        </div>
+        <div class="form-group" id="editOpenChatGroup" style="display:none;">
+          <label>오픈채팅방 URL (수정 시 관리자 전용 입력)</label>
+          <input type="url" id="editEventOpenChat" placeholder="https://open.kakao.com/o/...">
+        </div>
+        <button type="submit" class="btn btn-warning" style="width:100%;">수정 완료</button>
         <button type="button" class="btn btn-secondary closeModal" style="width:100%; margin-top:6px;">취소</button>
       </form>
     </div>
@@ -86,10 +154,18 @@
   <!-- 일정 상세 및 RSVP 모달 -->
   <div id="detailModal" class="modal-overlay">
     <div class="modal-content">
-      <h2 id="modalTitle">모임 상세</h2>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <h2 id="modalTitle" style="margin:0;">모임 상세</h2>
+        <div id="ownerAdminControlBtns" style="display:none; gap:6px;">
+          <button id="btnOpenEdit" class="btn btn-sm btn-warning">✏️ 수정</button>
+          <button id="btnDeleteEvent" class="btn btn-sm btn-danger">🗑️ 삭제</button>
+        </div>
+      </div>
+      
       <div style="font-size:13px; line-height:1.8; margin-bottom:15px; background:var(--table-header-bg); padding:12px; border-radius:6px;">
+        <p><strong>벙주:</strong> <span id="modalHost"></span></p>
         <p><strong>일시:</strong> <span id="modalDate"></span></p>
-        <p><strong>장소:</strong> <span id="modalLocation"></span></p>
+        <p><strong>집합장소:</strong> <span id="modalLocation"></span></p>
         <p><strong>정원:</strong> <span id="modalCapacity"></span></p>
         <p><strong>내용:</strong> <span id="modalDesc" style="white-space:pre-wrap;"></span></p>
         <p id="modalOpenChatArea" style="display:none; margin-top:6px;">
