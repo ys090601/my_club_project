@@ -3,51 +3,97 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>소모임 - 관리자 전용</title>
+  <title>소모임 - 관리자 대시보드</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <div class="container">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-      <h1>관리자 페이지</h1>
-      <a href="index.html" class="btn">메인으로</a>
+    <!-- 헤더 영역 -->
+    <div class="header-bar">
+      <div>
+        <h1>관리자 대시보드</h1>
+        <p style="font-size:12px; color:var(--subtext-color);">회원 승인, 성비 통계, 메모 및 시스템 관리를 진행합니다.</p>
+      </div>
+      <div class="btn-group">
+        <select id="themeSelector" class="theme-select">
+          <option value="system">⚙️ 시스템 설정</option>
+          <option value="light">☀️ 밝은 모드</option>
+          <option value="dark">🌙 어두운 모드</option>
+        </select>
+        <a href="index.html" class="btn btn-secondary">메인으로</a>
+      </div>
     </div>
 
-    <h2>신규 가입 신청 목록</h2>
-    <table>
-      <thead>
-        <tr>
-          <th>이름/연도/지역</th>
-          <th>닉네임</th>
-          <th>신청일</th>
-          <th>처리</th>
-        </tr>
-      </thead>
-      <tbody id="pendingUsersTable"></tbody>
-    </table>
+    <!-- 요약 통계 카드 -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <h4>전체 회원 수</h4>
+        <div id="statTotalUsers">0명</div>
+      </div>
+      <div class="stat-card">
+        <h4>회원 성비 (남/여)</h4>
+        <div id="statGenderRatio" style="font-size:16px; color:var(--primary-color);">남 0 / 여 0</div>
+      </div>
+      <div class="stat-card">
+        <h4>승인 대기 중</h4>
+        <div id="statPendingUsers" style="color:#eab308;">0명</div>
+      </div>
+      <div class="stat-card">
+        <h4>정지 회원</h4>
+        <div id="statBannedUsers" style="color:#ef4444;">0명</div>
+      </div>
+    </div>
 
-    <h2 style="margin-top:30px;">전체 회원 통계 및 관리</h2>
-    <table>
-      <thead>
-        <tr>
-          <th>회원 표시명</th>
-          <th>참여 횟수</th>
-          <th>취소 횟수</th>
-          <th>상태</th>
-          <th>관리자 메모</th>
-          <th>조치</th>
-        </tr>
-      </thead>
-      <tbody id="allUsersTable"></tbody>
-    </table>
+    <!-- 1. 신규 가입 신청 목록 -->
+    <h3 style="margin-bottom:10px;">신규 가입 신청 목록</h3>
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>표시명 (이름/연도/지역)</th>
+            <th>성별</th>
+            <th>닉네임</th>
+            <th>이메일</th>
+            <th>신청일</th>
+            <th>승인 처리</th>
+          </tr>
+        </thead>
+        <tbody id="pendingUsersTable">
+          <tr><td colspan="6" style="text-align:center;">불러오는 중...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 2. 전체 회원 관리 목록 -->
+    <h3 style="margin-top:20px; margin-bottom:10px;">전체 회원 목록 및 통계</h3>
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>회원 표시명</th>
+            <th>성별</th>
+            <th>이메일</th>
+            <th>참여 / 취소</th>
+            <th>상태</th>
+            <th>관리자 메모 (작성자 기록)</th>
+            <th>조치</th>
+          </tr>
+        </thead>
+        <tbody id="allUsersTable">
+          <tr><td colspan="7" style="text-align:center;">불러오는 중...</td></tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 
   <script type="module">
     import { db } from './js/firebase-config.js';
-    import { checkAuth } from './js/auth.js';
+    import { checkAuth, resetUserPassword } from './js/auth.js';
     import { 
-      collection, getDocs, doc, updateDoc, query, where, serverTimestamp 
+      collection, getDocs, doc, updateDoc, serverTimestamp 
     } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    let currentAdminUser = null;
 
     checkAuth(async (user) => {
       if (user.role !== 'admin') {
@@ -55,49 +101,78 @@
         window.location.href = "index.html";
         return;
       }
+      currentAdminUser = user;
       loadAdminData();
     });
 
     async function loadAdminData() {
-      // 승인 대기 목록
-      const pendingSnap = await getDocs(query(collection(db, "users"), where("status", "==", "pending")));
-      const pTable = document.getElementById('pendingUsersTable');
-      pTable.innerHTML = '';
-      
-      pendingSnap.forEach(uSnap => {
-        const u = uSnap.data();
-        pTable.innerHTML += `
-          <tr>
-            <td>${u.displayName}</td>
-            <td>${u.nickname}</td>
-            <td>${u.email}</td>
-            <td>
-              <button class="btn btn-success" onclick="approveUser('${u.uid}')">승인</button>
-            </td>
-          </tr>
-        `;
-      });
-
-      // 전체 회원 목록
       const allSnap = await getDocs(collection(db, "users"));
+      const allUsers = [];
+      let pendingCount = 0;
+      let bannedCount = 0;
+      let maleCount = 0;
+      let femaleCount = 0;
+
+      const pTable = document.getElementById('pendingUsersTable');
       const aTable = document.getElementById('allUsersTable');
+      pTable.innerHTML = '';
       aTable.innerHTML = '';
 
       allSnap.forEach(uSnap => {
         const u = uSnap.data();
+        allUsers.push(u);
+
+        // 성비 카운트
+        if (u.gender === '남성') maleCount++;
+        else if (u.gender === '여성') femaleCount++;
+
+        if (u.status === 'pending') {
+          pendingCount++;
+          const regDate = u.createdAt ? new Date(u.createdAt.toDate()).toLocaleDateString() : '-';
+          pTable.innerHTML += `
+            <tr>
+              <td><strong>${u.displayName}</strong></td>
+              <td>${u.gender || '미지정'}</td>
+              <td>${u.nickname}</td>
+              <td>${u.email}</td>
+              <td>${regDate}</td>
+              <td>
+                <button class="btn btn-success btn-sm" onclick="approveUser('${u.uid}')">승인하기</button>
+              </td>
+            </tr>
+          `;
+        }
+
+        if (u.status === 'banned') bannedCount++;
+
         aTable.innerHTML += `
           <tr>
-            <td>${u.displayName}</td>
-            <td>${u.joinCount || 0}회</td>
-            <td>${u.cancelCount || 0}회</td>
+            <td><strong>${u.displayName}</strong></td>
+            <td>${u.gender || '미지정'}</td>
+            <td>${u.email}</td>
+            <td>${u.joinCount || 0}회 / <span style="color:#ef4444;">${u.cancelCount || 0}회</span></td>
             <td><span class="badge badge-${u.status}">${u.status}</span></td>
-            <td><input type="text" value="${u.adminMemo || ''}" onchange="updateMemo('${u.uid}', this.value)"></td>
             <td>
-              <button class="btn btn-danger" onclick="banUser('${u.uid}')">강퇴</button>
+              <input type="text" class="table-input" value="${u.adminMemo || ''}" 
+                     placeholder="메모 입력 후 엔터" onchange="updateMemo('${u.uid}', this.value)">
+            </td>
+            <td>
+              <button class="btn btn-warning btn-sm" onclick="resetPassword('${u.email}')">비번 초기화</button>
+              <button class="btn btn-danger btn-sm" onclick="banUser('${u.uid}')">강퇴</button>
             </td>
           </tr>
         `;
       });
+
+      if (pendingCount === 0) {
+        pTable.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--subtext-color);">대기 중인 신규 가입자가 없습니다.</td></tr>`;
+      }
+
+      // 통계 카드 및 성비 표기
+      document.getElementById('statTotalUsers').innerText = `${allUsers.length}명`;
+      document.getElementById('statGenderRatio').innerText = `남 ${maleCount}명 / 여 ${femaleCount}명`;
+      document.getElementById('statPendingUsers').innerText = `${pendingCount}명`;
+      document.getElementById('statBannedUsers').innerText = `${bannedCount}명`;
     }
 
     window.approveUser = async (uid) => {
@@ -105,16 +180,29 @@
         status: "approved",
         approvedAt: serverTimestamp()
       });
-      alert("승인 완료되었습니다.");
+      alert("가입이 승인되었습니다.");
       loadAdminData();
     };
 
-    window.updateMemo = async (uid, memo) => {
-      await updateDoc(doc(db, "users", uid), { adminMemo: memo });
+    window.resetPassword = (email) => {
+      if (confirm(`${email} 회원에게 비밀번호 재설정 이메일을 발송하시겠습니까?`)) {
+        resetUserPassword(email);
+      }
+    };
+
+    // 📝 관리자 메모 작성 시 작성자 표기 (3명 관리자 대응)
+    window.updateMemo = async (uid, memoText) => {
+      if (!currentAdminUser) return;
+      const todayStr = new Date().toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' });
+      const formattedMemo = `${memoText} (by ${currentAdminUser.name}, ${todayStr})`;
+
+      await updateDoc(doc(db, "users", uid), { adminMemo: formattedMemo });
+      alert("관리자 메모가 저장되었습니다.");
+      loadAdminData();
     };
 
     window.banUser = async (uid) => {
-      if (confirm("정말 강퇴하시겠습니까?")) {
+      if (confirm("정말 이 회원을 강퇴 처리하시겠습니까?")) {
         await updateDoc(doc(db, "users", uid), { status: "banned" });
         loadAdminData();
       }

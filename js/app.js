@@ -8,38 +8,20 @@ let currentUser = null;
 let currentEvent = null;
 let currentDate = new Date();
 
-// 🇰🇷 대한민국 주요 공휴일 자동 계산 데이터베이스 (2025~2027)
+// 한국 법정 공휴일
 const HOLIDAYS = {
-  // 양력 고정 공휴일 (MM-DD)
   fixed: {
-    "01-01": "신정",
-    "03-01": "삼일절",
-    "05-05": "어린이날",
-    "06-06": "현충일",
-    "08-15": "광복절",
-    "10-03": "개천절",
-    "10-09": "한글날",
-    "12-25": "크리스마스"
+    "01-01": "신정", "03-01": "삼일절", "05-05": "어린이날", "06-06": "현충일",
+    "08-15": "광복절", "10-03": "개천절", "10-09": "한글날", "12-25": "크리스마스"
   },
-  // 연도별 음력 명절 및 대체공휴일 (YYYY-MM-DD)
   variable: {
-    // 2025년
-    "2025-01-28": "설날 연휴", "2025-01-29": "설날", "2025-01-30": "설날 연휴",
-    "2025-05-06": "대체공휴일", "2025-05-05": "부처님오신날",
-    "2025-10-05": "추석 연휴", "2025-10-06": "추석", "2025-10-07": "추석 연휴", "2025-10-08": "대체공휴일",
-    // 2026년
     "2026-02-16": "설날 연휴", "2026-02-17": "설날", "2026-02-18": "설날 연휴",
     "2026-03-02": "대체공휴일", "2026-05-24": "부처님오신날", "2026-05-25": "대체공휴일",
     "2026-08-17": "대체공휴일", "2026-09-24": "추석 연휴", "2026-09-25": "추석", "2026-09-26": "추석 연휴",
-    "2026-10-05": "대체공휴일",
-    // 2027년
-    "2027-02-06": "설날 연휴", "2027-02-07": "설날", "2027-02-08": "설날 연휴", "2027-02-09": "대체공휴일",
-    "2027-05-13": "부처님오신날",
-    "2027-09-14": "추석 연휴", "2027-09-15": "추석", "2027-09-16": "추석 연휴"
+    "2026-10-05": "대체공휴일"
   }
 };
 
-// 특정 날짜의 공휴일명 반환 함수
 function getHolidayName(year, month, date) {
   const mm = String(month + 1).padStart(2, '0');
   const dd = String(date).padStart(2, '0');
@@ -51,7 +33,6 @@ function getHolidayName(year, month, date) {
   return null;
 }
 
-// 로그인 체크
 checkAuth((userData) => {
   currentUser = userData;
   document.getElementById('userWelcome').innerText = `안녕하세요, ${userData.name}님!`;
@@ -64,7 +45,6 @@ checkAuth((userData) => {
   renderCalendar();
 });
 
-// 신입 회원(가입 30일 이내) 여부 검증
 function isNewbieUser(approvedAt) {
   if (!approvedAt) return false;
   const approvedDate = approvedAt.toDate ? approvedAt.toDate() : new Date(approvedAt);
@@ -72,7 +52,6 @@ function isNewbieUser(approvedAt) {
   return (new Date() - approvedDate) < thirtyDaysInMs;
 }
 
-// 동적 캘린더 렌더링 (공휴일 자동 표시 추가)
 async function renderCalendar() {
   const calendarEl = document.getElementById('calendar');
   calendarEl.innerHTML = '';
@@ -82,7 +61,6 @@ async function renderCalendar() {
 
   document.getElementById('currentYearMonth').innerText = `${year}년 ${month + 1}월`;
 
-  // 요일 헤더
   const days = ['일', '월', '화', '수', '목', '금', '토'];
   days.forEach(d => {
     calendarEl.innerHTML += `<div class="calendar-day-header">${d}</div>`;
@@ -91,15 +69,13 @@ async function renderCalendar() {
   const firstDay = new Date(year, month, 1).getDay();
   const lastDate = new Date(year, month + 1, 0).getDate();
 
-  // 이전 달 빈 칸
   for (let i = 0; i < firstDay; i++) {
     calendarEl.innerHTML += `<div class="calendar-day empty"></div>`;
   }
 
-  // 이번 달 일수 생성
   const today = new Date();
   for (let date = 1; date <= lastDate; date++) {
-    const dayOfWeek = new Date(year, month, date).getDay(); // 0:일, 6:토
+    const dayOfWeek = new Date(year, month, date).getDay();
     const holidayName = getHolidayName(year, month, date);
     
     let dayClass = "";
@@ -117,7 +93,6 @@ async function renderCalendar() {
     `;
   }
 
-  // Firestore 일정 로딩
   const querySnapshot = await getDocs(collection(db, "events"));
   querySnapshot.forEach((docSnap) => {
     const event = docSnap.data();
@@ -139,7 +114,6 @@ async function renderCalendar() {
   });
 }
 
-// 이전달 / 다음달 이동
 document.getElementById('prevMonthBtn').onclick = () => {
   currentDate.setMonth(currentDate.getMonth() - 1);
   renderCalendar();
@@ -150,7 +124,6 @@ document.getElementById('nextMonthBtn').onclick = () => {
   renderCalendar();
 };
 
-// 상세 모달 및 RSVP 목록
 async function openDetailModal(event) {
   currentEvent = event;
   document.getElementById('modalTitle').innerText = event.title;
@@ -164,12 +137,16 @@ async function openDetailModal(event) {
   document.getElementById('detailModal').classList.add('active');
 }
 
+// RSVP 리스트 로드 및 관리자 전용 성비 계산
 async function loadRSVPList() {
   const rsvpQuery = await getDocs(query(collection(db, "rsvps"), where("eventId", "==", currentEvent.id)));
   const pList = document.getElementById('participantList');
   const wList = document.getElementById('waitingList');
   pList.innerHTML = '';
   wList.innerHTML = '';
+
+  let maleCnt = 0;
+  let femaleCnt = 0;
 
   rsvpQuery.forEach((rSnap) => {
     const rData = rSnap.data();
@@ -179,12 +156,24 @@ async function loadRSVPList() {
       li.innerText += ` (취소사유: ${rData.cancelReason})`;
     }
 
-    if (rData.status === 'attending') pList.appendChild(li);
-    else if (rData.status === 'waiting') wList.appendChild(li);
+    if (rData.status === 'attending') {
+      pList.appendChild(li);
+      if (rData.gender === '남성') maleCnt++;
+      else if (rData.gender === '여성') femaleCnt++;
+    } else if (rData.status === 'waiting') {
+      wList.appendChild(li);
+    }
   });
+
+  // 관리자인 경우에만 모임 성비 정보 표시
+  if (currentUser && currentUser.role === 'admin') {
+    const genderInfo = document.createElement('p');
+    genderInfo.style.cssText = "font-size:12px; color:var(--primary-color); font-weight:bold; margin-top:5px;";
+    genderInfo.innerText = `🔒 [관리자 전용] 현재 참석자 성비: 남 ${maleCnt}명 / 여 ${femaleCnt}명`;
+    pList.appendChild(genderInfo);
+  }
 }
 
-// 참석 신청
 document.getElementById('btnAttend').onclick = async () => {
   if (!currentEvent || !currentUser) return;
 
@@ -209,6 +198,7 @@ document.getElementById('btnAttend').onclick = async () => {
     eventId: currentEvent.id,
     uid: currentUser.uid,
     displayName: currentUser.displayName,
+    gender: currentUser.gender || "미지정",
     isNewbie: isNewbie,
     status: rsvpStatus,
     createdAt: serverTimestamp()
@@ -230,7 +220,6 @@ document.getElementById('btnAttend').onclick = async () => {
   renderCalendar();
 };
 
-// 참석 취소
 document.getElementById('btnCancel').onclick = async () => {
   if (!currentEvent || !currentUser) return;
 
@@ -274,7 +263,6 @@ document.getElementById('btnCancel').onclick = async () => {
   renderCalendar();
 };
 
-// 모임 생성
 const createForm = document.getElementById('createEventForm');
 if (createForm) {
   createForm.addEventListener('submit', async (e) => {
@@ -300,7 +288,6 @@ if (createForm) {
   });
 }
 
-// 모달 닫기
 document.querySelectorAll('.closeModal').forEach(btn => {
   btn.onclick = () => {
     document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
