@@ -44,7 +44,10 @@
       </div>
       <div class="form-group">
         <label>출생연도</label>
-        <input type="number" id="signupBirthYear" required placeholder="1995" min="1950" max="2010">
+        <select id="signupBirthYear" required>
+          <option value="">출생연도 선택 (1989년~성인)</option>
+          <!-- js/auth.js에서 해가 바뀌면 동적으로 성인 출생연도 추가 생성됨 -->
+        </select>
       </div>
       <div class="form-group">
         <label>지역</label>

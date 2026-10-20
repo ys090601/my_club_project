@@ -47,6 +47,21 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
+
+  // 🎂 출생연도 동적 생성 함수 (상한선: 1989년생 고정, 하한선: 해가 바뀌면 성인 연생 자동 계산)
+  const birthYearSelect = document.getElementById('signupBirthYear');
+  if (birthYearSelect) {
+    const currentYear = new Date().getFullYear();
+    const minAdultYear = currentYear - 19; // 만 19세 성인 연생 자동 계산 (2026년 기준 2007년생)
+    const minBirthYear = 1989; // 상한선 고정
+
+    for (let year = minBirthYear; year <= minAdultYear; year++) {
+      const option = document.createElement('option');
+      option.value = String(year);
+      option.innerText = `${year}년생`;
+      birthYearSelect.appendChild(option);
+    }
+  }
 });
 
 // 회원가입 신청 처리
@@ -59,7 +74,7 @@ if (signupForm) {
     const passwordEl = document.getElementById('signupPassword');
     const passwordConfirmEl = document.getElementById('signupPasswordConfirm');
     const nameEl = document.getElementById('signupName');
-    const genderEl = document.getElementById('signupGender'); // 성별 요소 바인딩
+    const genderEl = document.getElementById('signupGender');
     const birthYearEl = document.getElementById('signupBirthYear');
     const regionEl = document.getElementById('signupRegion');
     const nicknameEl = document.getElementById('signupNickname');
@@ -77,6 +92,11 @@ if (signupForm) {
 
     if (!gender) {
       alert("성별을 선택해 주세요.");
+      return;
+    }
+
+    if (!birthYear) {
+      alert("출생연도를 선택해 주세요.");
       return;
     }
 
@@ -117,7 +137,11 @@ if (signupForm) {
       await signOut(auth);
       window.location.href = "login.html";
     } catch (error) {
-      alert("가입 실패: " + error.message);
+      if (error.code === 'auth/email-already-in-use') {
+        alert("이미 존재하거나 가입 처리 중인 이메일입니다. Firebase 콘솔 [Authentication] - [Users] 탭에서 해당 계정을 직접 [삭제]한 뒤 다시 시도해 주세요.");
+      } else {
+        alert("가입 실패: " + error.message);
+      }
     }
   });
 }
