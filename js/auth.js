@@ -12,7 +12,7 @@ import {
 
 const SECRET_AUTH_KEY = "CLUB2026"; 
 
-// 🎨 테마 적용 및 동기화 함수
+// 🎨 전역 테마 적용 및 시스템 모드 감지 함수
 export function applyTheme(theme) {
   if (theme === 'system') {
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -22,26 +22,37 @@ export function applyTheme(theme) {
   }
 }
 
-// 테마 스위치 초기화
-const themeSelector = document.getElementById('themeSelector');
-if (themeSelector) {
-  const savedTheme = localStorage.getItem('appTheme') || 'system';
-  themeSelector.value = savedTheme;
-  applyTheme(savedTheme);
+// 🌐 페이지 로드 시 즉시 로컬 스토리지에 저장된 테마 적용 (로그인 전 접속 화면 대응)
+const savedTheme = localStorage.getItem('appTheme') || 'system';
+applyTheme(savedTheme);
 
-  themeSelector.addEventListener('change', async (e) => {
-    const selectedTheme = e.target.value;
-    localStorage.setItem('appTheme', selectedTheme);
-    applyTheme(selectedTheme);
+// OS 시스템 테마 변경 실시간 감지
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+  const currentTheme = localStorage.getItem('appTheme') || 'system';
+  if (currentTheme === 'system') {
+    applyTheme('system');
+  }
+});
 
-    // 로그인된 상태라면 Firestore 유저 설정에도 테마 저장
-    if (auth.currentUser) {
-      await updateDoc(doc(db, "users", auth.currentUser.uid), {
-        themePreference: selectedTheme
-      });
-    }
-  });
-}
+// 테마 셀렉터 이벤트 연결
+document.addEventListener('DOMContentLoaded', () => {
+  const themeSelector = document.getElementById('themeSelector');
+  if (themeSelector) {
+    themeSelector.value = savedTheme;
+    themeSelector.addEventListener('change', async (e) => {
+      const selectedTheme = e.target.value;
+      localStorage.setItem('appTheme', selectedTheme);
+      applyTheme(selectedTheme);
+
+      // 로그인된 회원인 경우 Firestore 개인 설정에도 업데이트
+      if (auth.currentUser) {
+        await updateDoc(doc(db, "users", auth.currentUser.uid), {
+          themePreference: selectedTheme
+        });
+      }
+    });
+  }
+});
 
 // 회원가입 신청 처리
 const signupForm = document.getElementById('signupForm');
@@ -52,7 +63,7 @@ if (signupForm) {
     const password = document.getElementById('signupPassword').value;
     const passwordConfirm = document.getElementById('signupPasswordConfirm').value;
     const name = document.getElementById('signupName').value;
-    const gender = document.getElementById('signupGender').value; // 성별 추가
+    const gender = document.getElementById('signupGender').value;
     const birthYear = document.getElementById('signupBirthYear').value;
     const region = document.getElementById('signupRegion').value;
     const nickname = document.getElementById('signupNickname').value;
@@ -76,7 +87,7 @@ if (signupForm) {
         uid: user.uid,
         email: email,
         name: name,
-        gender: gender, // DB 저장
+        gender: gender,
         birthYear: birthYear,
         region: region,
         nickname: nickname,
@@ -125,7 +136,7 @@ if (loginForm) {
           return;
         }
 
-        // 로그인 성공 시 유저의 개인 테마 설정 적용
+        // 로그인 성공 시 유저 DB 테마 적용 및 저장
         if (userData.themePreference) {
           localStorage.setItem('appTheme', userData.themePreference);
           applyTheme(userData.themePreference);
@@ -149,7 +160,7 @@ export async function resetUserPassword(email) {
   }
 }
 
-// 권한 확인 및 유저 테마 동기화
+// 인증 체킹 및 유저 개인 테마 동기화
 export function checkAuth(callback) {
   onAuthStateChanged(auth, async (user) => {
     const path = window.location.pathname;
@@ -163,7 +174,6 @@ export function checkAuth(callback) {
       if (userDoc.exists()) {
         const userData = userDoc.data();
         
-        // 데이터베이스에 저장된 테마로 전역 적용
         if (userData.themePreference) {
           localStorage.setItem('appTheme', userData.themePreference);
           applyTheme(userData.themePreference);

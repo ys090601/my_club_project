@@ -8,7 +8,17 @@
 </head>
 <body>
   <div class="container" style="max-width: 420px; margin-top: 60px;">
-    <h2>소모임 로그인</h2>
+    <!-- 상단 헤더 및 테마 선택기 -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+      <h2>소모임 로그인</h2>
+      <select id="themeSelector" class="theme-select">
+        <option value="system">⚙️ 시스템 설정</option>
+        <option value="light">☀️ 밝은 모드</option>
+        <option value="dark">🌙 어두운 모드</option>
+      </select>
+    </div>
+
+    <!-- 로그인 폼 -->
     <form id="loginForm">
       <div class="form-group">
         <label>이메일 아이디</label>
@@ -22,7 +32,7 @@
     </form>
 
     <div style="text-align: center; margin-top: 20px; font-size: 14px;">
-      아직 회원이 아니신가요? <a href="signup.html" style="color: #3498db; font-weight: bold; text-decoration: none;">회원가입 신청하기</a>
+      아직 회원이 아니신가요? <a href="signup.html" style="color: var(--primary-color); font-weight: bold; text-decoration: none;">회원가입 신청하기</a>
     </div>
   </div>
 
