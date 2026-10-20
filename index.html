@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>소모임 - 일정 및 참석 관리</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script type="text/javascript" src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpClientId=YOUR_NAVER_CLIENT_ID"></script>
+</head>
+<body>
+  <div class="container">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+      <div>
+        <h1 id="userWelcome">소모임 캘린더</h1>
+        <p id="userInfo" style="font-size:13px; color:#666;"></p>
+      </div>
+      <div>
+        <a href="rules.html" class="btn btn-warning">공지사항</a>
+        <a href="admin.html" id="adminBtn" class="btn" style="display:none;">관리자</a>
+        <button id="logoutBtn" class="btn btn-danger">로그아웃</button>
+      </div>
+    </div>
+
+    <div style="margin-bottom: 15px; display:flex; justify-content:space-between;">
+      <button id="openCreateModalBtn" class="btn btn-success">+ 모임 일정 등록</button>
+      <button id="requestPauseBtn" class="btn btn-secondary">휴회 신청</button>
+    </div>
+
+    <!-- 캘린더 -->
+    <div id="calendar" class="calendar-grid"></div>
+  </div>
+
+  <!-- 일정 등록 모달 -->
+  <div id="createModal" class="modal-overlay">
+    <div class="modal-content">
+      <h2>신규 모임 등록</h2>
+      <form id="createEventForm">
+        <div class="form-group">
+          <label>모임명</label>
+          <input type="text" id="eventTitle" required placeholder="예: 10월 정기 정모">
+        </div>
+        <div class="form-group">
+          <label>날짜 및 시간</label>
+          <input type="datetime-local" id="eventDate" required>
+        </div>
+        <div class="form-group">
+          <label>장소</label>
+          <input type="text" id="eventLocation" required placeholder="예: 강남역 2번 출구 맛집">
+        </div>
+        <div class="form-group">
+          <label>기본 정원 (명)</label>
+          <input type="number" id="eventMax" required value="10" min="1">
+        </div>
+        <div class="form-group">
+          <label>상세 일정</label>
+          <textarea id="eventDesc" rows="3" required></textarea>
+        </div>
+        <div class="form-group">
+          <label>준비물</label>
+          <input type="text" id="eventSupplies" placeholder="예: 회비, 운동화">
+        </div>
+        <button type="submit" class="btn btn-success" style="width:100%;">등록하기</button>
+        <button type="button" class="btn btn-secondary closeModal" style="width:100%; margin-top:5px;">취소</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 일정 상세 및 RSVP 모달 -->
+  <div id="detailModal" class="modal-overlay">
+    <div class="modal-content">
+      <h2 id="modalTitle">모임 상세</h2>
+      <p><strong>일시:</strong> <span id="modalDate"></span></p>
+      <p><strong>장소:</strong> <span id="modalLocation"></span></p>
+      <p><strong>정원:</strong> <span id="modalCapacity"></span></p>
+      <p><strong>내용:</strong> <span id="modalDesc"></span></p>
+      <p><strong>준비물:</strong> <span id="modalSupplies"></span></p>
+
+      <hr style="margin: 15px 0;">
+      <h3>참석자 명단</h3>
+      <ul id="participantList" style="padding-left:20px; margin-bottom:10px;"></ul>
+
+      <h3>대기자 명단</h3>
+      <ul id="waitingList" style="padding-left:20px; margin-bottom:15px;"></ul>
+
+      <div id="rsvpButtons">
+        <button id="btnAttend" class="btn btn-success">참석 신청</button>
+        <button id="btnCancel" class="btn btn-danger">참석 취소</button>
+      </div>
+      <button class="btn closeModal" style="margin-top:15px;">닫기</button>
+    </div>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
