@@ -158,9 +158,13 @@ async function renderCalendar() {
   await renderStatusDashboard(monthEvents);
 }
 
+// 📊 개편된 현황판 렌더링 함수 (최대 5*11, 10개 초과 시에만 표 2개, 벙주 사용자명 표기, 증설 횟수 계산)
 async function renderStatusDashboard(events) {
+  const gridContainer = document.getElementById('statusDashboardGrid');
   const tbody1 = document.getElementById('statusTableBody1');
   const tbody2 = document.getElementById('statusTableBody2');
+  const table2Wrapper = document.getElementById('table2Wrapper');
+
   tbody1.innerHTML = '';
   tbody2.innerHTML = '';
 
@@ -173,8 +177,19 @@ async function renderStatusDashboard(events) {
     }
   });
 
+  const hasMoreThan10 = events.length > 10;
+
+  // 10개가 넘어가는 경우에만 오른쪽 표2 노출 및 2열 그리드 레이아웃 적용
+  if (hasMoreThan10) {
+    table2Wrapper.style.display = 'block';
+    gridContainer.classList.add('dashboard-parallel-grid');
+  } else {
+    table2Wrapper.style.display = 'none';
+    gridContainer.classList.remove('dashboard-parallel-grid');
+  }
+
   const table1Events = events.slice(0, 10);
-  const table2Events = events.slice(10, 20);
+  const table2Events = hasMoreThan10 ? events.slice(10, 20) : [];
 
   function createRowHtml(evt) {
     if (!evt) {
@@ -183,27 +198,41 @@ async function renderStatusDashboard(events) {
     const evtDate = new Date(evt.date);
     const dateStr = `${evtDate.getMonth() + 1}/${evtDate.getDate()}`;
     const newbieCnt = newbieCounts[evt.id] || 0;
-    const isExpanded = evt.currentCount >= evt.maxParticipants;
-    const expandedBadge = isExpanded ? `<span class="badge badge-expanded">증설완료</span>` : `<span style="color:var(--subtext-color);">정상</span>`;
-    const hostName = evt.hostName || '관리자';
+    
+    // 벙주 표기: 사용자명 (이름/연도/지역) 통일
+    const hostDisplayName = evt.hostDisplayName || evt.hostName || '관리자';
+
+    // 증설 횟수 계산 (기본 정원 대비 확장된 인원 기준)
+    const initialMax = evt.initialMaxParticipants || 10;
+    const currentMax = evt.maxParticipants || 10;
+    const expandTimes = Math.max(0, Math.floor((currentMax - initialMax) / 2) + (evt.expansionCount || 0));
+    
+    let expandText = `<span style="color:var(--subtext-color);">0회 (기본)</span>`;
+    if (expandTimes > 0) {
+      expandText = `<span class="badge badge-expanded">${expandTimes}회 증설</span>`;
+    }
 
     return `
       <tr onclick="openDetailModalById('${evt.id}')" style="cursor:pointer;">
         <td><strong>${dateStr}</strong></td>
         <td>${evt.title}</td>
-        <td>${hostName}</td>
+        <td>${hostDisplayName}</td>
         <td>${evt.currentCount || 0}/${evt.maxParticipants} (${newbieCnt}명)</td>
-        <td>${expandedBadge}</td>
+        <td>${expandText}</td>
       </tr>
     `;
   }
 
+  // 표 1 채우기 (10행 맞춤)
   for (let i = 0; i < 10; i++) {
     tbody1.innerHTML += createRowHtml(table1Events[i]);
   }
 
-  for (let i = 0; i < 10; i++) {
-    tbody2.innerHTML += createRowHtml(table2Events[i]);
+  // 표 2 채우기 (10개 초과 시 10행 맞춤)
+  if (hasMoreThan10) {
+    for (let i = 0; i < 10; i++) {
+      tbody2.innerHTML += createRowHtml(table2Events[i]);
+    }
   }
 }
 
@@ -229,7 +258,7 @@ document.getElementById('nextMonthBtn').onclick = () => {
 async function openDetailModal(event) {
   currentEvent = event;
   document.getElementById('modalTitle').innerText = event.title;
-  document.getElementById('modalHost').innerText = event.hostName || '관리자';
+  document.getElementById('modalHost').innerText = event.hostDisplayName || event.hostName || '관리자';
   document.getElementById('modalDate').innerText = new Date(event.date).toLocaleString();
   document.getElementById('modalLocation').innerText = event.location;
   document.getElementById('modalCapacity').innerText = `${event.currentCount || 0} / ${event.maxParticipants}명`;
@@ -260,7 +289,6 @@ async function openDetailModal(event) {
   document.getElementById('detailModal').classList.add('active');
 }
 
-// 수정 모달 열기 (벙주: 날짜/시간, 집합장소, 상세설명 수정 가능)
 document.getElementById('btnOpenEdit').onclick = () => {
   if (!currentEvent || !currentUser) return;
   const isAdmin = currentUser.role === 'admin' || currentUser.clubRole === '모임장' || currentUser.clubRole === '운영진';
@@ -276,7 +304,6 @@ document.getElementById('btnOpenEdit').onclick = () => {
   const locInput = document.getElementById('editEventLocation');
   const maxInput = document.getElementById('editEventMax');
 
-  // 집합장소(locInput)는 벙주와 관리자 모두 수정 가능
   locInput.removeAttribute('readonly');
 
   if (isAdmin) {
@@ -286,7 +313,6 @@ document.getElementById('btnOpenEdit').onclick = () => {
       document.getElementById('editEventOpenChat').value = currentEvent.openChatUrl || '';
     }
   } else {
-    // 벙주(일반멤버): 정원은 수정 불가
     maxInput.setAttribute('readonly', true);
     if (editOpenChatGrp) editOpenChatGrp.style.display = 'none';
   }
@@ -300,17 +326,23 @@ document.getElementById('editEventForm').addEventListener('submit', async (e) =>
   const eventId = document.getElementById('editEventId').value;
   const isAdmin = currentUser.role === 'admin' || currentUser.clubRole === '모임장' || currentUser.clubRole === '운영진';
 
-  // 벙주 및 관리자 공통 수정 데이터 (날짜/시간, 집합장소, 상세설명)
   const updateData = {
     date: document.getElementById('editEventDate').value,
     location: document.getElementById('editEventLocation').value,
     description: document.getElementById('editEventDesc').value
   };
 
-  // 관리자 전용 수정 데이터 (정원, 오픈채팅방 URL)
   if (isAdmin) {
-    updateData.maxParticipants = parseInt(document.getElementById('editEventMax').value);
+    const newMax = parseInt(document.getElementById('editEventMax').value);
+    const oldMax = currentEvent.maxParticipants || 10;
+    updateData.maxParticipants = newMax;
     updateData.openChatUrl = document.getElementById('editEventOpenChat').value;
+
+    // 정원 증가 시 증설 횟수 추가 계산
+    if (newMax > oldMax) {
+      const addedTimes = Math.ceil((newMax - oldMax) / 2);
+      updateData.expansionCount = (currentEvent.expansionCount || 0) + addedTimes;
+    }
   }
 
   await updateDoc(doc(db, "events", eventId), updateData);
@@ -451,17 +483,21 @@ if (createForm) {
   createForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const dateVal = document.getElementById('eventDate').value;
+    const maxVal = parseInt(document.getElementById('eventMax').value);
 
     await addDoc(collection(db, "events"), {
       title: document.getElementById('eventTitle').value,
       date: dateVal,
       location: document.getElementById('eventLocation').value,
-      maxParticipants: parseInt(document.getElementById('eventMax').value),
+      maxParticipants: maxVal,
+      initialMaxParticipants: maxVal, // 초기 기본 정원 기록
+      expansionCount: 0, // 초기 증설 횟수
       currentCount: 0,
       description: document.getElementById('eventDesc').value,
       openChatUrl: "",
       createdBy: currentUser.uid,
-      hostName: currentUser.name || currentUser.displayName,
+      hostName: currentUser.name,
+      hostDisplayName: currentUser.displayName, // 벙주 사용자명 (이름/연도/지역)
       status: "approved",
       createdAt: serverTimestamp()
     });

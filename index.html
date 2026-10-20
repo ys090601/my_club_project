@@ -47,10 +47,10 @@
     <!-- 동적 캘린더 그리드 -->
     <div id="calendar" class="calendar-grid"></div>
 
-    <!-- 📊 캘린더 아래 현황판 (5열 11행 2개 테이블 병렬 배치) -->
+    <!-- 📊 캘린더 아래 현황판 (10개 초과 시 표 2개로 자동 분할) -->
     <h3 style="margin-top:35px; margin-bottom:10px; font-size:16px;">📋 모임 일정 현황판</h3>
-    <div class="dashboard-parallel-grid">
-      <!-- 테이블 1 (1~10번 모임) -->
+    <div class="dashboard-parallel-grid" id="statusDashboardGrid">
+      <!-- 테이블 1 (기본 1~10번 모임) -->
       <div class="table-responsive">
         <table>
           <thead>
@@ -59,15 +59,15 @@
               <th>모임일정명</th>
               <th>벙주</th>
               <th>인원현황(신입)</th>
-              <th>인원 증설 여부</th>
+              <th>인원 증설 횟수</th>
             </tr>
           </thead>
           <tbody id="statusTableBody1"></tbody>
         </table>
       </div>
 
-      <!-- 테이블 2 (11~20번 모임) -->
-      <div class="table-responsive">
+      <!-- 테이블 2 (10개 초과 시에만 동적 노출) -->
+      <div class="table-responsive" id="table2Wrapper" style="display:none;">
         <table>
           <thead>
             <tr>
@@ -75,7 +75,7 @@
               <th>모임일정명</th>
               <th>벙주</th>
               <th>인원현황(신입)</th>
-              <th>인원 증설 여부</th>
+              <th>인원 증설 횟수</th>
             </tr>
           </thead>
           <tbody id="statusTableBody2"></tbody>
@@ -115,7 +115,7 @@
     </div>
   </div>
 
-  <!-- 일정 수정 모달 (벙주: 날짜/시간, 집합장소, 상세설명 수정 가능) -->
+  <!-- 일정 수정 모달 -->
   <div id="editModal" class="modal-overlay">
     <div class="modal-content">
       <h2>모임 일정 수정</h2>
