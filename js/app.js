@@ -8,7 +8,6 @@ let currentUser = null;
 let currentEvent = null;
 let currentDate = new Date();
 
-// ⏰ 5분(300,000ms) 주기 자동 새로고침 설정
 setInterval(() => {
   console.log("5분 주기 자동 새로고침 실행");
   window.location.reload();
@@ -70,7 +69,7 @@ checkAuth(async (userData) => {
 
   loadPinnedNotice();
   renderCalendar();
-  renderUpcomingEventsDashboard(); // 금일 기준 전 일정 현황판 렌더링
+  renderUpcomingEventsDashboard();
 });
 
 async function loadPinnedNotice() {
@@ -92,7 +91,6 @@ function isNewbieUser(approvedAt) {
   return (new Date() - approvedDate) < thirtyDaysInMs;
 }
 
-// 캘린더 그리드 렌더링
 async function renderCalendar() {
   const calendarEl = document.getElementById('calendar');
   calendarEl.innerHTML = '';
@@ -156,7 +154,7 @@ async function renderCalendar() {
   });
 }
 
-// 📊 금일(2026.10.21) 기준 향후 전체 일정 현황판 출력 함수 (월 선택 독립)
+// 📊 금일 기준 향후 전체 일정 현황판 출력
 async function renderUpcomingEventsDashboard() {
   const gridContainer = document.getElementById('statusDashboardGrid');
   const tbody1 = document.getElementById('statusTableBody1');
@@ -166,10 +164,8 @@ async function renderUpcomingEventsDashboard() {
   tbody1.innerHTML = '';
   tbody2.innerHTML = '';
 
-  // 금일 00:00:00 기준 설정
   const todayStr = new Date().toISOString().split('T')[0];
 
-  // 금일 기준 이후 예정된 모든 모임 일정 가져오기
   const querySnapshot = await getDocs(query(collection(db, "events"), orderBy("date", "asc")));
   const upcomingEvents = [];
 
@@ -182,7 +178,6 @@ async function renderUpcomingEventsDashboard() {
     }
   });
 
-  // 모든 모임의 신입 참석자 수 조회
   const rsvpSnap = await getDocs(collection(db, "rsvps"));
   const newbieCounts = {};
   rsvpSnap.forEach(r => {
@@ -213,10 +208,7 @@ async function renderUpcomingEventsDashboard() {
     const dateStr = `${evtDate.getMonth() + 1}/${evtDate.getDate()}`;
     const newbieCnt = newbieCounts[evt.id] || 0;
     
-    // 벙주 표기: 사용자명 (이름/연도/지역)
     const hostDisplayName = evt.hostDisplayName || evt.hostName || '관리자';
-
-    // 증설 횟수: 관리자가 증설 버튼 클릭한 실제 횟수(expansionCount) 표기
     const expandTimes = evt.expansionCount || 0;
     
     let expandText = `<span style="color:var(--subtext-color);">0회 (기본)</span>`;
@@ -444,7 +436,7 @@ document.getElementById('btnCancel').onclick = async () => {
   if (!currentEvent || !currentUser) return;
 
   const rsvpDocId = `${currentEvent.id}_${currentUser.uid}`;
-  const rsvpSnap = await getDoc(doc(db, "rsvps", rsvpDocId));
+  const rsvpSnap = await getDoc(doc(doc(db, "rsvps", rsvpDocId)));
 
   if (!rsvpSnap.exists()) {
     alert("신청 내역이 없습니다.");
@@ -480,21 +472,59 @@ document.getElementById('btnCancel').onclick = async () => {
   window.location.reload();
 };
 
+// 🔒 모임 등록 제출 처리 (일반 멤버 동일 날짜 중복 개설 검증 및 희망 신청 전환)
 const createForm = document.getElementById('createEventForm');
 if (createForm) {
   createForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const dateVal = document.getElementById('eventDate').value;
-    const maxVal = parseInt(document.getElementById('eventMax').value);
 
+    const title = document.getElementById('eventTitle').value;
+    const dateVal = document.getElementById('eventDate').value;
+    const location = document.getElementById('eventLocation').value;
+    const maxVal = parseInt(document.getElementById('eventMax').value);
+    const desc = document.getElementById('eventDesc').value;
+
+    const selectedTargetDate = dateVal.split('T')[0];
+    const isAdmin = currentUser && (currentUser.role === 'admin' || currentUser.clubRole === '모임장' || currentUser.clubRole === '운영진');
+
+    // 1. 일반 멤버인 경우 선택 날짜에 기존 모임 유무 체크
+    if (!isAdmin) {
+      const allEventsSnap = await getDocs(collection(db, "events"));
+      let isDuplicateDate = false;
+
+      allEventsSnap.forEach(docSnap => {
+        const eData = docSnap.data();
+        if (eData.date && eData.date.split('T')[0] === selectedTargetDate) {
+          isDuplicateDate = true;
+        }
+      });
+
+      // 동일 날짜 모임 존재 시 블로킹 및 개설 희망 신청 모달로 유도
+      if (isDuplicateDate) {
+        alert("선택하신 날짜에는 이미 등록된 모임 일정이 있습니다. 추가 개설을 원하시면 운영진에게 문의해 주세요.");
+        
+        // 희망 신청 모달 폼에 데이터 자동 채우기
+        document.getElementById('reqEventTitle').value = title;
+        document.getElementById('reqEventDate').value = dateVal;
+        document.getElementById('reqEventLocation').value = location;
+        document.getElementById('reqEventMax').value = maxVal;
+        document.getElementById('reqEventDesc').value = desc;
+
+        document.getElementById('createModal').classList.remove('active');
+        document.getElementById('requestModal').classList.add('active');
+        return;
+      }
+    }
+
+    // 관리자이거나 동일 날짜 모임이 없는 경우 바로 개설
     await addDoc(collection(db, "events"), {
-      title: document.getElementById('eventTitle').value,
+      title: title,
       date: dateVal,
-      location: document.getElementById('eventLocation').value,
+      location: location,
       maxParticipants: maxVal,
       expansionCount: 0,
       currentCount: 0,
-      description: document.getElementById('eventDesc').value,
+      description: desc,
       openChatUrl: "",
       createdBy: currentUser.uid,
       hostName: currentUser.name,
@@ -503,7 +533,32 @@ if (createForm) {
       createdAt: serverTimestamp()
     });
 
-    alert("모임이 성공적으로 등록되었습니다.");
+    alert("모임 일정이 성공적으로 등록되었습니다!");
+    window.location.reload();
+  });
+}
+
+// 📩 일반 멤버 개설 희망 신청 제출 처리
+const requestForm = document.getElementById('requestEventForm');
+if (requestForm) {
+  requestForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    await addDoc(collection(db, "pendingEvents"), {
+      title: document.getElementById('reqEventTitle').value,
+      date: document.getElementById('reqEventDate').value,
+      location: document.getElementById('reqEventLocation').value,
+      maxParticipants: parseInt(document.getElementById('reqEventMax').value),
+      description: document.getElementById('reqEventDesc').value,
+      requestReason: document.getElementById('reqReason').value,
+      createdBy: currentUser.uid,
+      hostName: currentUser.name,
+      hostDisplayName: currentUser.displayName,
+      status: "pending",
+      createdAt: serverTimestamp()
+    });
+
+    alert("운영진에게 모임 개설 희망 신청서가 전달되었습니다. 관리자 승인 후 캘린더에 정식 등록됩니다.");
     window.location.reload();
   });
 }

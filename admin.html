@@ -12,7 +12,7 @@
     <div class="header-bar">
       <div>
         <h1>관리자 대시보드</h1>
-        <p style="font-size:12px; color:var(--subtext-color);">회원 권한, 지정 인원 증설, 가입 인증키 관리</p>
+        <p style="font-size:12px; color:var(--subtext-color);">회원 권한, 모임 개설 희망 승인, 지정 인원 증설, 가입 인증키 관리</p>
       </div>
       <div class="btn-group">
         <select id="themeSelector" class="theme-select">
@@ -40,12 +40,12 @@
         <div id="statTotalUsers">0명</div>
       </div>
       <div class="stat-card">
-        <h4>회원 성비 (남/여)</h4>
-        <div id="statGenderRatio" style="font-size:16px; color:var(--primary-color);">남 0 / 여 0</div>
+        <h4>📥 개설 희망 신청</h4>
+        <div id="statPendingEvents" style="color:#eab308;">0건</div>
       </div>
       <div class="stat-card">
-        <h4>승인 대기 중</h4>
-        <div id="statPendingUsers" style="color:#eab308;">0명</div>
+        <h4>승인 대기 회원</h4>
+        <div id="statPendingUsers" style="color:#3b82f6;">0명</div>
       </div>
       <div class="stat-card">
         <h4>🚨 정원 마감 (증설 필요)</h4>
@@ -53,8 +53,28 @@
       </div>
     </div>
 
+    <!-- 📥 모임 개설 희망 신청 목록 (관리자 승인 시스템) -->
+    <h3 style="margin-bottom:10px; color:#eab308;">📥 모임 개설 희망 신청 목록</h3>
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>희망 날짜</th>
+            <th>모임명</th>
+            <th>신청자(벙주)</th>
+            <th>집합장소/정원</th>
+            <th>희망 사유 및 상세</th>
+            <th>승인 처리</th>
+          </tr>
+        </thead>
+        <tbody id="pendingEventsTable">
+          <tr><td colspan="6" style="text-align:center;">불러오는 중...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
     <!-- 🚨 정원 마감 모임 (지정 인원 증설 제어) -->
-    <h3 style="margin-bottom:10px; color:#c2410c;">🚨 인원 증설 대상 모임 일정</h3>
+    <h3 style="margin-top:20px; margin-bottom:10px; color:#c2410c;">🚨 인원 증설 대상 모임 일정</h3>
     <div class="table-responsive">
       <table>
         <thead>
@@ -123,7 +143,7 @@
     import { db } from './js/firebase-config.js';
     import { checkAuth, resetUserPassword } from './js/auth.js';
     import { 
-      collection, getDocs, doc, getDoc, setDoc, updateDoc, serverTimestamp 
+      collection, getDocs, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, serverTimestamp 
     } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     let currentAdminUser = null;
@@ -136,6 +156,7 @@
       }
       currentAdminUser = user;
       loadSystemSettings();
+      loadPendingEvents();
       loadFullEvents();
       loadAdminData();
     });
@@ -157,6 +178,82 @@
       }
       await setDoc(doc(db, "settings", "system"), { authKey: newKey }, { merge: true });
       alert("회원가입 인증키가 변경되었습니다!");
+    };
+
+    // 📥 모임 개설 희망 신청 목록 로드
+    async function loadPendingEvents() {
+      const pSnap = await getDocs(collection(db, "pendingEvents"));
+      const pTable = document.getElementById('pendingEventsTable');
+      pTable.innerHTML = '';
+      let pendingCnt = 0;
+
+      pSnap.forEach(docSnap => {
+        pendingCnt++;
+        const pe = docSnap.data();
+        const peId = docSnap.id;
+        const peDate = new Date(pe.date).toLocaleString('ko-KR');
+
+        pTable.innerHTML += `
+          <tr>
+            <td><strong>${peDate}</strong></td>
+            <td>${pe.title}</td>
+            <td>${pe.hostDisplayName || pe.hostName}</td>
+            <td>${pe.location} (${pe.maxParticipants}명)</td>
+            <td style="text-align:left; font-size:11px;">
+              <strong>사유:</strong> ${pe.requestReason || '없음'}<br>
+              <strong>내용:</strong> ${pe.description}
+            </td>
+            <td>
+              <button class="btn btn-sm btn-success" onclick="approvePendingEvent('${peId}')">승인 및 등록</button>
+              <button class="btn btn-sm btn-danger" onclick="rejectPendingEvent('${peId}')" style="margin-top:4px;">반려</button>
+            </td>
+          </tr>
+        `;
+      });
+
+      if (pendingCnt === 0) {
+        pTable.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--subtext-color);">대기 중인 모임 개설 희망 신청이 없습니다.</td></tr>`;
+      }
+      document.getElementById('statPendingEvents').innerText = `${pendingCnt}건`;
+    }
+
+    // 모임 개설 희망 승인 (실제 모임 일정으로 승인 개설 등록)
+    window.approvePendingEvent = async (pendingId) => {
+      const peSnap = await getDoc(doc(db, "pendingEvents", pendingId));
+      if (!peSnap.exists()) return;
+
+      const pe = peSnap.data();
+      
+      // events 컬렉션으로 복사 생성
+      await addDoc(collection(db, "events"), {
+        title: pe.title,
+        date: pe.date,
+        location: pe.location,
+        maxParticipants: pe.maxParticipants,
+        expansionCount: 0,
+        currentCount: 0,
+        description: pe.description,
+        openChatUrl: "",
+        createdBy: pe.createdBy,
+        hostName: pe.hostName,
+        hostDisplayName: pe.hostDisplayName,
+        status: "approved",
+        createdAt: serverTimestamp()
+      });
+
+      // 신청건 삭제
+      await deleteDoc(doc(db, "pendingEvents", pendingId));
+      alert("모임 개설 신청이 승인되어 정식 캘린더 모임 일정으로 등록되었습니다!");
+      loadPendingEvents();
+    };
+
+    // 모임 개설 희망 반려
+    window.rejectPendingEvent = async (pendingId) => {
+      if (confirm("이 개설 희망 신청을 반려 삭제하시겠습니까?")) {
+        await deleteDoc(doc(db, "pendingEvents", pendingId));
+        alert("반려 처리되었습니다.");
+        loadPendingEvents();
+      }
     };
 
     // 🚨 정원 마감 모임 조회 및 관리자 지정 인원 증설 처리
@@ -198,7 +295,6 @@
       document.getElementById('statFullEvents').innerText = `${fullCnt}건`;
     }
 
-    // 인원 증설 버튼 클릭 시: 지정 인원 증가 + 증설 클릭 횟수 1회 증가
     window.expandEventCapacity = async (eventId, currentMax, currentExpCount) => {
       const addInput = document.getElementById(`addCapacity_${eventId}`);
       const addVal = addInput ? parseInt(addInput.value) : 2;

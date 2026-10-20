@@ -84,7 +84,7 @@
     </div>
   </div>
 
-  <!-- 일정 등록 모달 -->
+  <!-- 신규 일정 등록 모달 -->
   <div id="createModal" class="modal-overlay">
     <div class="modal-content">
       <h2>신규 모임 등록</h2>
@@ -109,7 +109,43 @@
           <label>상세 일정</label>
           <textarea id="eventDesc" rows="5" required placeholder="[상세 일정 가이드]&#10;1차 : 강남 맛집 식사 (18:00)&#10;2차 : 볼링장 / 카페 이동 (20:00)&#10;회비 : 1/N (약 2~3만원)&#10;준비물 : 신분증, 매너"></textarea>
         </div>
-        <button type="submit" class="btn btn-success" style="width:100%;">등록하기</button>
+        <button type="submit" class="btn btn-success" style="width:100%;">등록 신청하기</button>
+        <button type="button" class="btn btn-secondary closeModal" style="width:100%; margin-top:6px;">취소</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 📩 일반 멤버 모임 개설 희망 신청 모달 (동일 날짜 모임 존재 시 대안) -->
+  <div id="requestModal" class="modal-overlay">
+    <div class="modal-content">
+      <h2 style="color:#eab308;">📩 모임 개설 희망 신청</h2>
+      <p style="font-size:12px; color:var(--subtext-color); margin-bottom:12px;">선택하신 날짜에는 이미 등록된 모임 일정이 있습니다. 운영진의 검토 후 승인 시 개설됩니다.</p>
+      <form id="requestEventForm">
+        <div class="form-group">
+          <label>모임명</label>
+          <input type="text" id="reqEventTitle" required readonly style="opacity:0.8;">
+        </div>
+        <div class="form-group">
+          <label>날짜 및 시간</label>
+          <input type="datetime-local" id="reqEventDate" required readonly style="opacity:0.8;">
+        </div>
+        <div class="form-group">
+          <label>집합장소</label>
+          <input type="text" id="reqEventLocation" required readonly style="opacity:0.8;">
+        </div>
+        <div class="form-group">
+          <label>기본 정원 (명)</label>
+          <input type="number" id="reqEventMax" required readonly style="opacity:0.8;">
+        </div>
+        <div class="form-group">
+          <label>상세 일정</label>
+          <textarea id="reqEventDesc" rows="4" required readonly style="opacity:0.8;"></textarea>
+        </div>
+        <div class="form-group">
+          <label>개설 희망 사유 (운영진 전달)</label>
+          <textarea id="reqReason" rows="3" required placeholder="예: 1차 정모가 조기 마감되어 동일 날짜 2차 번개 모임을 개설하고자 합니다."></textarea>
+        </div>
+        <button type="submit" class="btn btn-warning" style="width:100%;">운영진에게 개설 희망 신청하기</button>
         <button type="button" class="btn btn-secondary closeModal" style="width:100%; margin-top:6px;">취소</button>
       </form>
     </div>
