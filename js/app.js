@@ -70,6 +70,7 @@ checkAuth(async (userData) => {
 
   loadPinnedNotice();
   renderCalendar();
+  renderUpcomingEventsDashboard(); // 금일 기준 전 일정 현황판 렌더링
 });
 
 async function loadPinnedNotice() {
@@ -91,6 +92,7 @@ function isNewbieUser(approvedAt) {
   return (new Date() - approvedDate) < thirtyDaysInMs;
 }
 
+// 캘린더 그리드 렌더링
 async function renderCalendar() {
   const calendarEl = document.getElementById('calendar');
   calendarEl.innerHTML = '';
@@ -133,7 +135,6 @@ async function renderCalendar() {
   }
 
   const querySnapshot = await getDocs(query(collection(db, "events"), orderBy("date", "asc")));
-  const monthEvents = [];
 
   querySnapshot.forEach((docSnap) => {
     const event = docSnap.data();
@@ -141,7 +142,6 @@ async function renderCalendar() {
     
     const eventDateObj = new Date(event.date);
     if (eventDateObj.getFullYear() === year && eventDateObj.getMonth() === month) {
-      monthEvents.push(event);
       const eventDay = eventDateObj.getDate();
       const dayEl = document.getElementById(`day-${eventDay}`);
       
@@ -154,12 +154,10 @@ async function renderCalendar() {
       }
     }
   });
-
-  await renderStatusDashboard(monthEvents);
 }
 
-// 📊 개편된 현황판 렌더링 함수 (최대 5*11, 10개 초과 시에만 표 2개, 벙주 사용자명 표기, 증설 횟수 계산)
-async function renderStatusDashboard(events) {
+// 📊 금일(2026.10.21) 기준 향후 전체 일정 현황판 출력 함수 (월 선택 독립)
+async function renderUpcomingEventsDashboard() {
   const gridContainer = document.getElementById('statusDashboardGrid');
   const tbody1 = document.getElementById('statusTableBody1');
   const tbody2 = document.getElementById('statusTableBody2');
@@ -168,6 +166,23 @@ async function renderStatusDashboard(events) {
   tbody1.innerHTML = '';
   tbody2.innerHTML = '';
 
+  // 금일 00:00:00 기준 설정
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  // 금일 기준 이후 예정된 모든 모임 일정 가져오기
+  const querySnapshot = await getDocs(query(collection(db, "events"), orderBy("date", "asc")));
+  const upcomingEvents = [];
+
+  querySnapshot.forEach((docSnap) => {
+    const evt = docSnap.data();
+    evt.id = docSnap.id;
+    const evtDateStr = evt.date ? evt.date.split('T')[0] : '';
+    if (evtDateStr >= todayStr) {
+      upcomingEvents.push(evt);
+    }
+  });
+
+  // 모든 모임의 신입 참석자 수 조회
   const rsvpSnap = await getDocs(collection(db, "rsvps"));
   const newbieCounts = {};
   rsvpSnap.forEach(r => {
@@ -177,9 +192,8 @@ async function renderStatusDashboard(events) {
     }
   });
 
-  const hasMoreThan10 = events.length > 10;
+  const hasMoreThan10 = upcomingEvents.length > 10;
 
-  // 10개가 넘어가는 경우에만 오른쪽 표2 노출 및 2열 그리드 레이아웃 적용
   if (hasMoreThan10) {
     table2Wrapper.style.display = 'block';
     gridContainer.classList.add('dashboard-parallel-grid');
@@ -188,8 +202,8 @@ async function renderStatusDashboard(events) {
     gridContainer.classList.remove('dashboard-parallel-grid');
   }
 
-  const table1Events = events.slice(0, 10);
-  const table2Events = hasMoreThan10 ? events.slice(10, 20) : [];
+  const table1Events = upcomingEvents.slice(0, 10);
+  const table2Events = hasMoreThan10 ? upcomingEvents.slice(10, 20) : [];
 
   function createRowHtml(evt) {
     if (!evt) {
@@ -199,13 +213,11 @@ async function renderStatusDashboard(events) {
     const dateStr = `${evtDate.getMonth() + 1}/${evtDate.getDate()}`;
     const newbieCnt = newbieCounts[evt.id] || 0;
     
-    // 벙주 표기: 사용자명 (이름/연도/지역) 통일
+    // 벙주 표기: 사용자명 (이름/연도/지역)
     const hostDisplayName = evt.hostDisplayName || evt.hostName || '관리자';
 
-    // 증설 횟수 계산 (기본 정원 대비 확장된 인원 기준)
-    const initialMax = evt.initialMaxParticipants || 10;
-    const currentMax = evt.maxParticipants || 10;
-    const expandTimes = Math.max(0, Math.floor((currentMax - initialMax) / 2) + (evt.expansionCount || 0));
+    // 증설 횟수: 관리자가 증설 버튼 클릭한 실제 횟수(expansionCount) 표기
+    const expandTimes = evt.expansionCount || 0;
     
     let expandText = `<span style="color:var(--subtext-color);">0회 (기본)</span>`;
     if (expandTimes > 0) {
@@ -223,12 +235,10 @@ async function renderStatusDashboard(events) {
     `;
   }
 
-  // 표 1 채우기 (10행 맞춤)
   for (let i = 0; i < 10; i++) {
     tbody1.innerHTML += createRowHtml(table1Events[i]);
   }
 
-  // 표 2 채우기 (10개 초과 시 10행 맞춤)
   if (hasMoreThan10) {
     for (let i = 0; i < 10; i++) {
       tbody2.innerHTML += createRowHtml(table2Events[i]);
@@ -333,16 +343,8 @@ document.getElementById('editEventForm').addEventListener('submit', async (e) =>
   };
 
   if (isAdmin) {
-    const newMax = parseInt(document.getElementById('editEventMax').value);
-    const oldMax = currentEvent.maxParticipants || 10;
-    updateData.maxParticipants = newMax;
+    updateData.maxParticipants = parseInt(document.getElementById('editEventMax').value);
     updateData.openChatUrl = document.getElementById('editEventOpenChat').value;
-
-    // 정원 증가 시 증설 횟수 추가 계산
-    if (newMax > oldMax) {
-      const addedTimes = Math.ceil((newMax - oldMax) / 2);
-      updateData.expansionCount = (currentEvent.expansionCount || 0) + addedTimes;
-    }
   }
 
   await updateDoc(doc(db, "events", eventId), updateData);
@@ -490,14 +492,13 @@ if (createForm) {
       date: dateVal,
       location: document.getElementById('eventLocation').value,
       maxParticipants: maxVal,
-      initialMaxParticipants: maxVal, // 초기 기본 정원 기록
-      expansionCount: 0, // 초기 증설 횟수
+      expansionCount: 0,
       currentCount: 0,
       description: document.getElementById('eventDesc').value,
       openChatUrl: "",
       createdBy: currentUser.uid,
       hostName: currentUser.name,
-      hostDisplayName: currentUser.displayName, // 벙주 사용자명 (이름/연도/지역)
+      hostDisplayName: currentUser.displayName,
       status: "approved",
       createdAt: serverTimestamp()
     });

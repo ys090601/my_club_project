@@ -12,7 +12,7 @@
     <div class="header-bar">
       <div>
         <h1>관리자 대시보드</h1>
-        <p style="font-size:12px; color:var(--subtext-color);">회원 권한, 증설 대상 일정 모니터링, 가입 인증키 관리</p>
+        <p style="font-size:12px; color:var(--subtext-color);">회원 권한, 지정 인원 증설, 가입 인증키 관리</p>
       </div>
       <div class="btn-group">
         <select id="themeSelector" class="theme-select">
@@ -48,12 +48,12 @@
         <div id="statPendingUsers" style="color:#eab308;">0명</div>
       </div>
       <div class="stat-card">
-        <h4>🚨 정원 마감 (증설 대상)</h4>
+        <h4>🚨 정원 마감 (증설 필요)</h4>
         <div id="statFullEvents" style="color:#c2410c;">0건</div>
       </div>
     </div>
 
-    <!-- 🚨 정원 마감 모임 (증설 대상 일정 표기) -->
+    <!-- 🚨 정원 마감 모임 (지정 인원 증설 제어) -->
     <h3 style="margin-bottom:10px; color:#c2410c;">🚨 인원 증설 대상 모임 일정</h3>
     <div class="table-responsive">
       <table>
@@ -62,13 +62,14 @@
             <th>날짜</th>
             <th>모임일정명</th>
             <th>벙주</th>
-            <th>집합장소</th>
             <th>현재인원 / 정원</th>
-            <th>상태</th>
+            <th>증설 클릭 횟수</th>
+            <th>추가 증설할 인원</th>
+            <th>증설 조치</th>
           </tr>
         </thead>
         <tbody id="fullEventsTable">
-          <tr><td colspan="6" style="text-align:center;">불러오는 중...</td></tr>
+          <tr><td colspan="7" style="text-align:center;">불러오는 중...</td></tr>
         </tbody>
       </table>
     </div>
@@ -158,7 +159,7 @@
       alert("회원가입 인증키가 변경되었습니다!");
     };
 
-    // 🚨 정원 마감 모임 일정 (증설 대상) 로드
+    // 🚨 정원 마감 모임 조회 및 관리자 지정 인원 증설 처리
     async function loadFullEvents() {
       const eSnap = await getDocs(collection(db, "events"));
       const fTable = document.getElementById('fullEventsTable');
@@ -167,27 +168,57 @@
 
       eSnap.forEach(docSnap => {
         const e = docSnap.data();
+        const eId = docSnap.id;
         if (e.currentCount >= e.maxParticipants) {
           fullCnt++;
           const eDate = new Date(e.date).toLocaleString('ko-KR');
+          const expCount = e.expansionCount || 0;
+
           fTable.innerHTML += `
             <tr>
               <td>${eDate}</td>
               <td><strong>${e.title}</strong></td>
-              <td>${e.hostName || '관리자'}</td>
-              <td>${e.location}</td>
+              <td>${e.hostDisplayName || e.hostName || '관리자'}</td>
               <td>${e.currentCount} / ${e.maxParticipants}명</td>
-              <td><span class="badge badge-full">🚨 증설 대상 일정</span></td>
+              <td><span class="badge badge-expanded">${expCount}회 증설됨</span></td>
+              <td>
+                <input type="number" id="addCapacity_${eId}" class="table-input" value="2" min="1" style="width:70px; text-align:center;"> 명
+              </td>
+              <td>
+                <button class="btn btn-sm btn-success" onclick="expandEventCapacity('${eId}', ${e.maxParticipants}, ${expCount})">➕ 인원 증설</button>
+              </td>
             </tr>
           `;
         }
       });
 
       if (fullCnt === 0) {
-        fTable.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--subtext-color);">현재 정원이 마감된 인원 증설 대상 모임이 없습니다.</td></tr>`;
+        fTable.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--subtext-color);">현재 정원이 마감된 인원 증설 대상 모임이 없습니다.</td></tr>`;
       }
       document.getElementById('statFullEvents').innerText = `${fullCnt}건`;
     }
+
+    // 인원 증설 버튼 클릭 시: 지정 인원 증가 + 증설 클릭 횟수 1회 증가
+    window.expandEventCapacity = async (eventId, currentMax, currentExpCount) => {
+      const addInput = document.getElementById(`addCapacity_${eventId}`);
+      const addVal = addInput ? parseInt(addInput.value) : 2;
+
+      if (isNaN(addVal) || addVal <= 0) {
+        alert("올바른 증설 인원수를 입력해 주세요.");
+        return;
+      }
+
+      const newMax = currentMax + addVal;
+      const newExpCount = currentExpCount + 1;
+
+      await updateDoc(doc(db, "events", eventId), {
+        maxParticipants: newMax,
+        expansionCount: newExpCount
+      });
+
+      alert(`정원이 +${addVal}명 증설되어 총 ${newMax}명이 되었습니다! (누적 증설 횟수: ${newExpCount}회)`);
+      loadFullEvents();
+    };
 
     async function loadAdminData() {
       const allSnap = await getDocs(collection(db, "users"));

@@ -47,10 +47,10 @@
     <!-- 동적 캘린더 그리드 -->
     <div id="calendar" class="calendar-grid"></div>
 
-    <!-- 📊 캘린더 아래 현황판 (10개 초과 시 표 2개로 자동 분할) -->
-    <h3 style="margin-top:35px; margin-bottom:10px; font-size:16px;">📋 모임 일정 현황판</h3>
+    <!-- 📊 캘린더 아래 현황판 (금일 기준 예정된 모든 모임 일정 출력 / 10개 초과시 표 2개 분할) -->
+    <h3 style="margin-top:35px; margin-bottom:10px; font-size:16px;">📋 금일 기준 향후 모임 일정 현황판</h3>
     <div class="dashboard-parallel-grid" id="statusDashboardGrid">
-      <!-- 테이블 1 (기본 1~10번 모임) -->
+      <!-- 테이블 1 (1~10번) -->
       <div class="table-responsive">
         <table>
           <thead>
@@ -66,7 +66,7 @@
         </table>
       </div>
 
-      <!-- 테이블 2 (10개 초과 시에만 동적 노출) -->
+      <!-- 테이블 2 (11번부터 초과 시 동적 출력) -->
       <div class="table-responsive" id="table2Wrapper" style="display:none;">
         <table>
           <thead>
