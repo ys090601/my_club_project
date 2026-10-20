@@ -7,8 +7,16 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <div class="container" style="max-width: 450px; margin-top: 40px;">
-    <h2>신규 회원가입 신청</h2>
+  <div class="container" style="max-width: 450px; margin-top: 30px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+      <h2>신규 회원가입 신청</h2>
+      <select id="themeSelector" class="theme-select">
+        <option value="system">⚙️ 시스템 설정</option>
+        <option value="light">☀️ 밝은 모드</option>
+        <option value="dark">🌙 어두운 모드</option>
+      </select>
+    </div>
+
     <form id="signupForm">
       <div class="form-group">
         <label>이메일 아이디</label>
@@ -25,6 +33,14 @@
       <div class="form-group">
         <label>이름</label>
         <input type="text" id="signupName" required placeholder="홍길동">
+      </div>
+      <div class="form-group">
+        <label>성별</label>
+        <select id="signupGender" required>
+          <option value="">성별 선택</option>
+          <option value="남성">남성</option>
+          <option value="여성">여성</option>
+        </select>
       </div>
       <div class="form-group">
         <label>출생연도</label>
@@ -60,13 +76,13 @@
       </div>
       <div class="form-group">
         <label>인증키</label>
-        <input type="password" id="signupAuthKey" required placeholder="소모임 지정 인증키 입력">
+        <input type="password" id="signupAuthKey" required placeholder="소모임 지정 인증키 입력 (CLUB2026)">
       </div>
       <button type="submit" class="btn btn-success" style="width:100%;">가입 신청하기</button>
     </form>
 
     <div style="text-align: center; margin-top: 20px; font-size: 14px;">
-      이미 계정이 있으신가요? <a href="login.html" style="color: #3498db; font-weight: bold; text-decoration: none;">로그인 페이지로 돌아가기</a>
+      이미 계정이 있으신가요? <a href="login.html" style="color: var(--primary-color); font-weight: bold; text-decoration: none;">로그인 페이지로 돌아가기</a>
     </div>
   </div>
 

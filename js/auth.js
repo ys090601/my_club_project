@@ -12,7 +12,6 @@ import {
 
 const SECRET_AUTH_KEY = "CLUB2026"; 
 
-// 🎨 전역 테마 적용 및 시스템 모드 감지 함수
 export function applyTheme(theme) {
   if (theme === 'system') {
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -22,11 +21,9 @@ export function applyTheme(theme) {
   }
 }
 
-// 🌐 페이지 로드 시 즉시 로컬 스토리지에 저장된 테마 적용 (로그인 전 접속 화면 대응)
 const savedTheme = localStorage.getItem('appTheme') || 'system';
 applyTheme(savedTheme);
 
-// OS 시스템 테마 변경 실시간 감지
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
   const currentTheme = localStorage.getItem('appTheme') || 'system';
   if (currentTheme === 'system') {
@@ -34,7 +31,6 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () 
   }
 });
 
-// 테마 셀렉터 이벤트 연결
 document.addEventListener('DOMContentLoaded', () => {
   const themeSelector = document.getElementById('themeSelector');
   if (themeSelector) {
@@ -44,7 +40,6 @@ document.addEventListener('DOMContentLoaded', () => {
       localStorage.setItem('appTheme', selectedTheme);
       applyTheme(selectedTheme);
 
-      // 로그인된 회원인 경우 Firestore 개인 설정에도 업데이트
       if (auth.currentUser) {
         await updateDoc(doc(db, "users", auth.currentUser.uid), {
           themePreference: selectedTheme
@@ -59,15 +54,31 @@ const signupForm = document.getElementById('signupForm');
 if (signupForm) {
   signupForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const email = document.getElementById('signupEmail').value;
-    const password = document.getElementById('signupPassword').value;
-    const passwordConfirm = document.getElementById('signupPasswordConfirm').value;
-    const name = document.getElementById('signupName').value;
-    const gender = document.getElementById('signupGender').value;
-    const birthYear = document.getElementById('signupBirthYear').value;
-    const region = document.getElementById('signupRegion').value;
-    const nickname = document.getElementById('signupNickname').value;
-    const authKey = document.getElementById('signupAuthKey').value;
+
+    const emailEl = document.getElementById('signupEmail');
+    const passwordEl = document.getElementById('signupPassword');
+    const passwordConfirmEl = document.getElementById('signupPasswordConfirm');
+    const nameEl = document.getElementById('signupName');
+    const genderEl = document.getElementById('signupGender'); // 성별 요소 바인딩
+    const birthYearEl = document.getElementById('signupBirthYear');
+    const regionEl = document.getElementById('signupRegion');
+    const nicknameEl = document.getElementById('signupNickname');
+    const authKeyEl = document.getElementById('signupAuthKey');
+
+    const email = emailEl ? emailEl.value : '';
+    const password = passwordEl ? passwordEl.value : '';
+    const passwordConfirm = passwordConfirmEl ? passwordConfirmEl.value : '';
+    const name = nameEl ? nameEl.value : '';
+    const gender = genderEl ? genderEl.value : '';
+    const birthYear = birthYearEl ? birthYearEl.value : '';
+    const region = regionEl ? regionEl.value : '';
+    const nickname = nicknameEl ? nicknameEl.value : '';
+    const authKey = authKeyEl ? authKeyEl.value : '';
+
+    if (!gender) {
+      alert("성별을 선택해 주세요.");
+      return;
+    }
 
     if (password !== passwordConfirm) {
       alert("비밀번호와 비밀번호 확인이 일치하지 않습니다.");
@@ -75,7 +86,7 @@ if (signupForm) {
     }
 
     if (authKey !== SECRET_AUTH_KEY) {
-      alert("인증키가 올바르지 않습니다. 관리자에게 문의하세요.");
+      alert("인증키가 올바르지 않습니다. (인증키: CLUB2026)");
       return;
     }
 
@@ -136,7 +147,6 @@ if (loginForm) {
           return;
         }
 
-        // 로그인 성공 시 유저 DB 테마 적용 및 저장
         if (userData.themePreference) {
           localStorage.setItem('appTheme', userData.themePreference);
           applyTheme(userData.themePreference);
@@ -150,7 +160,6 @@ if (loginForm) {
   });
 }
 
-// 비밀번호 재설정 이메일
 export async function resetUserPassword(email) {
   try {
     await sendPasswordResetEmail(auth, email);
@@ -160,7 +169,6 @@ export async function resetUserPassword(email) {
   }
 }
 
-// 인증 체킹 및 유저 개인 테마 동기화
 export function checkAuth(callback) {
   onAuthStateChanged(auth, async (user) => {
     const path = window.location.pathname;
@@ -187,7 +195,6 @@ export function checkAuth(callback) {
   });
 }
 
-// 로그아웃
 const logoutBtn = document.getElementById('logoutBtn');
 if (logoutBtn) {
   logoutBtn.addEventListener('click', async () => {
