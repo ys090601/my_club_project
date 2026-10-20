@@ -1,7 +1,7 @@
 import { db } from './firebase-config.js';
 import { checkAuth } from './auth.js';
 import { 
-  collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, setDoc, query, where, orderBy, serverTimestamp 
+  collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, setDoc, query, where, serverTimestamp 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 let currentUser = null;
@@ -32,20 +32,45 @@ function getHolidayName(year, month, date) {
   return null;
 }
 
-checkAuth((userData) => {
+// 1. 헤더 요구 양식 출력: "안녕하세요, 홍길동님! 총 참여횟수 : X회 (이번달 : Y회) | 마지막 참여일자 : 20xx.xx.xx"
+checkAuth(async (userData) => {
   currentUser = userData;
   document.getElementById('userWelcome').innerText = `안녕하세요, ${userData.name}님!`;
-  document.getElementById('userInfo').innerText = `표시명: ${userData.displayName} (${userData.role === 'admin' ? '관리자' : '회원'})`;
+
+  // 이번달 참석 횟수 실시간 계산
+  const now = new Date();
+  const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   
-  if (userData.role === 'admin') {
+  const rsvpSnap = await getDocs(query(
+    collection(db, "rsvps"),
+    where("uid", "==", userData.uid),
+    where("status", "==", "attending")
+  ));
+
+  let monthCount = 0;
+  rsvpSnap.forEach(r => {
+    const rData = r.data();
+    if (rData.createdAt) {
+      const rDate = rData.createdAt.toDate ? rData.createdAt.toDate() : new Date(rData.createdAt);
+      const rYM = `${rDate.getFullYear()}-${String(rDate.getMonth() + 1).padStart(2, '0')}`;
+      if (rYM === currentYearMonth) monthCount++;
+    }
+  });
+
+  const lastJoinedStr = userData.lastJoinedAt ? new Date(userData.lastJoinedAt.toDate()).toLocaleDateString('ko-KR') : '참여 내역 없음';
+  document.getElementById('userInfo').innerText = `총 참여횟수 : ${userData.joinCount || 0}회 (이번달 : ${monthCount}회) | 마지막 참여일자 : ${lastJoinedStr}`;
+
+  // 모임장 및 운영진만 관리자 버튼 및 오픈채팅 등록란 노출
+  if (userData.role === 'admin' || userData.clubRole === '모임장' || userData.clubRole === '운영진') {
     document.getElementById('adminBtn').style.display = 'inline-block';
+    const openChatGrp = document.getElementById('openChatGroup');
+    if (openChatGrp) openChatGrp.style.display = 'block';
   }
-  
+
   loadPinnedNotice();
   renderCalendar();
 });
 
-// 메인 고정 공지사항 불러오기
 async function loadPinnedNotice() {
   const q = query(collection(db, "notices"), where("isPinned", "==", true));
   const snap = await getDocs(q);
@@ -144,7 +169,16 @@ async function openDetailModal(event) {
   document.getElementById('modalLocation').innerText = event.location;
   document.getElementById('modalCapacity').innerText = `${event.currentCount || 0} / ${event.maxParticipants}명`;
   document.getElementById('modalDesc').innerText = event.description;
-  document.getElementById('modalSupplies').innerText = event.supplies || '없음';
+
+  // 오픈채팅방 URL이 있는 경우 링크 제공
+  const chatArea = document.getElementById('modalOpenChatArea');
+  const chatLink = document.getElementById('modalOpenChatLink');
+  if (event.openChatUrl && chatArea && chatLink) {
+    chatLink.href = event.openChatUrl;
+    chatArea.style.display = 'block';
+  } else if (chatArea) {
+    chatArea.style.display = 'none';
+  }
 
   await loadRSVPList();
   document.getElementById('detailModal').classList.add('active');
@@ -177,14 +211,15 @@ async function loadRSVPList() {
     }
   });
 
-  if (currentUser && currentUser.role === 'admin') {
+  if (currentUser && (currentUser.role === 'admin' || currentUser.clubRole === '모임장' || currentUser.clubRole === '운영진')) {
     const genderInfo = document.createElement('p');
     genderInfo.style.cssText = "font-size:12px; color:var(--primary-color); font-weight:bold; margin-top:5px;";
-    genderInfo.innerText = `🔒 [관리자 전용] 현재 참석자 성비: 남 ${maleCnt}명 / 여 ${femaleCnt}명`;
+    genderInfo.innerText = `🔒 [운영진 전용] 참석자 성비: 남 ${maleCnt}명 / 여 ${femaleCnt}명`;
     pList.appendChild(genderInfo);
   }
 }
 
+// 2. 참석 신청 후 바로 자동 새로고침 적용
 document.getElementById('btnAttend').onclick = async () => {
   if (!currentEvent || !currentUser) return;
 
@@ -218,19 +253,18 @@ document.getElementById('btnAttend').onclick = async () => {
   if (rsvpStatus === "attending") {
     const newCount = (currentEvent.currentCount || 0) + 1;
     await updateDoc(doc(db, "events", currentEvent.id), { currentCount: newCount });
-    currentEvent.currentCount = newCount;
-    document.getElementById('modalCapacity').innerText = `${newCount} / ${currentEvent.maxParticipants}명`;
     
-    await updateDoc(doc(doc(db, "users", currentUser.uid)), {
-      joinCount: (currentUser.joinCount || 0) + 1
+    await updateDoc(doc(db, "users", currentUser.uid), {
+      joinCount: (currentUser.joinCount || 0) + 1,
+      lastJoinedAt: serverTimestamp()
     });
   }
 
-  alert(rsvpStatus === "attending" ? "참석 신청이 완료되었습니다!" : "정원이 초과되어 대기자로 등록되었습니다.");
-  await loadRSVPList();
-  renderCalendar();
+  alert(rsvpStatus === "attending" ? "참석 신청이 완료되었습니다!" : "대기자로 등록되었습니다.");
+  window.location.reload(); // 즉시 자동 새로고침
 };
 
+// 2. 참석 취소 후 바로 자동 새로고침 적용
 document.getElementById('btnCancel').onclick = async () => {
   if (!currentEvent || !currentUser) return;
 
@@ -261,8 +295,6 @@ document.getElementById('btnCancel').onclick = async () => {
   if (rsvpData.status === "attending") {
     const newCount = Math.max(0, (currentEvent.currentCount || 1) - 1);
     await updateDoc(doc(db, "events", currentEvent.id), { currentCount: newCount });
-    currentEvent.currentCount = newCount;
-    document.getElementById('modalCapacity').innerText = `${newCount} / ${currentEvent.maxParticipants}명`;
 
     await updateDoc(doc(db, "users", currentUser.uid), {
       cancelCount: (currentUser.cancelCount || 0) + 1
@@ -270,15 +302,16 @@ document.getElementById('btnCancel').onclick = async () => {
   }
 
   alert("참석 취소가 완료되었습니다.");
-  await loadRSVPList();
-  renderCalendar();
+  window.location.reload(); // 즉시 자동 새로고침
 };
 
+// 2. 일정 등록 후 바로 자동 새로고침 적용
 const createForm = document.getElementById('createEventForm');
 if (createForm) {
   createForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const dateVal = document.getElementById('eventDate').value;
+    const openChatVal = document.getElementById('eventOpenChat') ? document.getElementById('eventOpenChat').value : '';
 
     await addDoc(collection(db, "events"), {
       title: document.getElementById('eventTitle').value,
@@ -287,15 +320,14 @@ if (createForm) {
       maxParticipants: parseInt(document.getElementById('eventMax').value),
       currentCount: 0,
       description: document.getElementById('eventDesc').value,
-      supplies: document.getElementById('eventSupplies').value,
+      openChatUrl: openChatVal, // 오픈채팅방 URL 저장
       createdBy: currentUser.uid,
       status: "approved",
       createdAt: serverTimestamp()
     });
 
     alert("모임이 성공적으로 등록되었습니다.");
-    document.getElementById('createModal').classList.remove('active');
-    renderCalendar();
+    window.location.reload(); // 즉시 자동 새로고침
   });
 }
 

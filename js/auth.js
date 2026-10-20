@@ -10,8 +10,6 @@ import {
   doc, setDoc, getDoc, updateDoc, serverTimestamp 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-const SECRET_AUTH_KEY = "CLUB2026"; 
-
 export function applyTheme(theme) {
   if (theme === 'system') {
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -48,12 +46,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 🎂 출생연도 동적 생성 함수 (상한선: 1989년생 고정, 하한선: 해가 바뀌면 성인 연생 자동 계산)
   const birthYearSelect = document.getElementById('signupBirthYear');
   if (birthYearSelect) {
     const currentYear = new Date().getFullYear();
-    const minAdultYear = currentYear - 19; // 만 19세 성인 연생 자동 계산 (2026년 기준 2007년생)
-    const minBirthYear = 1989; // 상한선 고정
+    const minAdultYear = currentYear - 19;
+    const minBirthYear = 1989;
 
     for (let year = minBirthYear; year <= minAdultYear; year++) {
       const option = document.createElement('option');
@@ -64,39 +61,24 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-// 회원가입 신청 처리
+// 회원가입 신청 처리 (Firestore에서 관리자 인증키 동적 검증)
 const signupForm = document.getElementById('signupForm');
 if (signupForm) {
   signupForm.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    const emailEl = document.getElementById('signupEmail');
-    const passwordEl = document.getElementById('signupPassword');
-    const passwordConfirmEl = document.getElementById('signupPasswordConfirm');
-    const nameEl = document.getElementById('signupName');
-    const genderEl = document.getElementById('signupGender');
-    const birthYearEl = document.getElementById('signupBirthYear');
-    const regionEl = document.getElementById('signupRegion');
-    const nicknameEl = document.getElementById('signupNickname');
-    const authKeyEl = document.getElementById('signupAuthKey');
+    const email = document.getElementById('signupEmail').value;
+    const password = document.getElementById('signupPassword').value;
+    const passwordConfirm = document.getElementById('signupPasswordConfirm').value;
+    const name = document.getElementById('signupName').value;
+    const gender = document.getElementById('signupGender').value;
+    const birthYear = document.getElementById('signupBirthYear').value;
+    const region = document.getElementById('signupRegion').value;
+    const nickname = document.getElementById('signupNickname').value;
+    const authKey = document.getElementById('signupAuthKey').value;
 
-    const email = emailEl ? emailEl.value : '';
-    const password = passwordEl ? passwordEl.value : '';
-    const passwordConfirm = passwordConfirmEl ? passwordConfirmEl.value : '';
-    const name = nameEl ? nameEl.value : '';
-    const gender = genderEl ? genderEl.value : '';
-    const birthYear = birthYearEl ? birthYearEl.value : '';
-    const region = regionEl ? regionEl.value : '';
-    const nickname = nicknameEl ? nicknameEl.value : '';
-    const authKey = authKeyEl ? authKeyEl.value : '';
-
-    if (!gender) {
-      alert("성별을 선택해 주세요.");
-      return;
-    }
-
-    if (!birthYear) {
-      alert("출생연도를 선택해 주세요.");
+    if (!gender || !birthYear) {
+      alert("성별과 출생연도를 정확히 선택해 주세요.");
       return;
     }
 
@@ -105,8 +87,19 @@ if (signupForm) {
       return;
     }
 
-    if (authKey !== SECRET_AUTH_KEY) {
-      alert("인증키가 올바르지 않습니다. (인증키: CLUB2026)");
+    // Firestore의 system 설정 문서에서 현재 가입 인증키 조회
+    let validAuthKey = "CLUB2026"; // 기본값
+    try {
+      const settingsSnap = await getDoc(doc(db, "settings", "system"));
+      if (settingsSnap.exists() && settingsSnap.data().authKey) {
+        validAuthKey = settingsSnap.data().authKey;
+      }
+    } catch (err) {
+      console.log("기본 인증키 적용 중...");
+    }
+
+    if (authKey !== validAuthKey) {
+      alert("가입 인증키가 올바르지 않습니다. 관리자에게 문의하세요.");
       return;
     }
 
@@ -125,6 +118,7 @@ if (signupForm) {
         displayName: `${name}/${birthYear.slice(-2)}/${region}`,
         status: "pending",
         role: "member",
+        clubRole: "멤버", // 기본 권한: 멤버 (운영진/모임장/멤버)
         joinCount: 0,
         cancelCount: 0,
         adminMemo: "",
@@ -138,7 +132,7 @@ if (signupForm) {
       window.location.href = "login.html";
     } catch (error) {
       if (error.code === 'auth/email-already-in-use') {
-        alert("이미 존재하거나 가입 처리 중인 이메일입니다. Firebase 콘솔 [Authentication] - [Users] 탭에서 해당 계정을 직접 [삭제]한 뒤 다시 시도해 주세요.");
+        alert("이미 가입되어 있거나 가입 신청 중인 이메일입니다.");
       } else {
         alert("가입 실패: " + error.message);
       }

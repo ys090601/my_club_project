@@ -12,7 +12,7 @@
     <div class="header-bar">
       <div>
         <h1>관리자 대시보드</h1>
-        <p style="font-size:12px; color:var(--subtext-color);">회원 승인, 성비 통계, 메모 및 시스템 관리를 진행합니다.</p>
+        <p style="font-size:12px; color:var(--subtext-color);">회원 권한, 가입 인증키 및 시스템 관리를 진행합니다.</p>
       </div>
       <div class="btn-group">
         <select id="themeSelector" class="theme-select">
@@ -21,6 +21,15 @@
           <option value="dark">🌙 어두운 모드</option>
         </select>
         <a href="index.html" class="btn btn-secondary">메인으로</a>
+      </div>
+    </div>
+
+    <!-- 🗝️ 가입 인증키 변경 패널 (요구사항 6) -->
+    <div style="background:var(--table-header-bg); padding:15px; border-radius:8px; margin-bottom:20px; border:1px solid var(--border-color);">
+      <h3 style="font-size:14px; margin-bottom:8px;">🗝️ 회원가입 인증키 변경 설정</h3>
+      <div style="display:flex; gap:10px; align-items:center; max-width:400px;">
+        <input type="text" id="currentAuthKeyInput" class="table-input" placeholder="새 가입 인증키 입력">
+        <button class="btn btn-sm btn-success" id="updateAuthKeyBtn" style="white-space:nowrap;">인증키 변경 저장</button>
       </div>
     </div>
 
@@ -50,7 +59,8 @@
       <table>
         <thead>
           <tr>
-            <th>표시명 (이름/연도/지역)</th>
+            <th>이름</th>
+            <th>표시명</th>
             <th>성별</th>
             <th>닉네임</th>
             <th>이메일</th>
@@ -59,28 +69,30 @@
           </tr>
         </thead>
         <tbody id="pendingUsersTable">
-          <tr><td colspan="6" style="text-align:center;">불러오는 중...</td></tr>
+          <tr><td colspan="7" style="text-align:center;">불러오는 중...</td></tr>
         </tbody>
       </table>
     </div>
 
-    <!-- 2. 전체 회원 관리 목록 -->
-    <h3 style="margin-top:20px; margin-bottom:10px;">전체 회원 목록 및 통계</h3>
+    <!-- 2. 전체 회원 관리 및 권한 설정 목록 (요구사항 7) -->
+    <h3 style="margin-top:20px; margin-bottom:10px;">전체 회원 목록 및 권한 관리</h3>
     <div class="table-responsive">
       <table>
         <thead>
           <tr>
-            <th>회원 표시명</th>
+            <th>이름</th>
             <th>성별</th>
-            <th>이메일</th>
+            <th>직책 / 권한</th>
+            <th>가입일자</th>
+            <th>마지막 참여일</th>
             <th>참여 / 취소</th>
             <th>상태</th>
-            <th>관리자 메모 (작성자 기록)</th>
+            <th>관리자 메모</th>
             <th>조치</th>
           </tr>
         </thead>
         <tbody id="allUsersTable">
-          <tr><td colspan="7" style="text-align:center;">불러오는 중...</td></tr>
+          <tr><td colspan="9" style="text-align:center;">불러오는 중...</td></tr>
         </tbody>
       </table>
     </div>
@@ -90,20 +102,43 @@
     import { db } from './js/firebase-config.js';
     import { checkAuth, resetUserPassword } from './js/auth.js';
     import { 
-      collection, getDocs, doc, updateDoc, serverTimestamp 
+      collection, getDocs, doc, getDoc, setDoc, updateDoc, serverTimestamp 
     } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     let currentAdminUser = null;
 
     checkAuth(async (user) => {
-      if (user.role !== 'admin') {
-        alert("관리자 권한이 필요합니다.");
+      // 모임장 및 운영진 권한 체크
+      if (user.role !== 'admin' && user.clubRole !== '모임장' && user.clubRole !== '운영진') {
+        alert("모임장 및 운영진만 접근할 수 있습니다.");
         window.location.href = "index.html";
         return;
       }
       currentAdminUser = user;
+      loadSystemSettings();
       loadAdminData();
     });
+
+    // 인증키 로드
+    async function loadSystemSettings() {
+      const settingsSnap = await getDoc(doc(db, "settings", "system"));
+      if (settingsSnap.exists() && settingsSnap.data().authKey) {
+        document.getElementById('currentAuthKeyInput').value = settingsSnap.data().authKey;
+      } else {
+        document.getElementById('currentAuthKeyInput').value = "CLUB2026";
+      }
+    }
+
+    // 인증키 변경 저장
+    document.getElementById('updateAuthKeyBtn').onclick = async () => {
+      const newKey = document.getElementById('currentAuthKeyInput').value.trim();
+      if (!newKey) {
+        alert("인증키를 입력하세요.");
+        return;
+      }
+      await setDoc(doc(db, "settings", "system"), { authKey: newKey }, { merge: true });
+      alert("회원가입 인증키가 변경되었습니다!");
+    };
 
     async function loadAdminData() {
       const allSnap = await getDocs(collection(db, "users"));
@@ -122,16 +157,19 @@
         const u = uSnap.data();
         allUsers.push(u);
 
-        // 성비 카운트
         if (u.gender === '남성') maleCount++;
         else if (u.gender === '여성') femaleCount++;
 
+        const joinDateStr = u.approvedAt ? new Date(u.approvedAt.toDate()).toLocaleDateString('ko-KR') : (u.createdAt ? new Date(u.createdAt.toDate()).toLocaleDateString('ko-KR') : '-');
+        const lastJoinedStr = u.lastJoinedAt ? new Date(u.lastJoinedAt.toDate()).toLocaleDateString('ko-KR') : '참여 내역 없음';
+
         if (u.status === 'pending') {
           pendingCount++;
-          const regDate = u.createdAt ? new Date(u.createdAt.toDate()).toLocaleDateString() : '-';
+          const regDate = u.createdAt ? new Date(u.createdAt.toDate()).toLocaleDateString('ko-KR') : '-';
           pTable.innerHTML += `
             <tr>
-              <td><strong>${u.displayName}</strong></td>
+              <td><strong>${u.name || '-'}</strong></td>
+              <td>${u.displayName}</td>
               <td>${u.gender || '미지정'}</td>
               <td>${u.nickname}</td>
               <td>${u.email}</td>
@@ -145,16 +183,26 @@
 
         if (u.status === 'banned') bannedCount++;
 
+        const currentRole = u.clubRole || '멤버';
+
         aTable.innerHTML += `
           <tr>
-            <td><strong>${u.displayName}</strong></td>
+            <td><strong>${u.name || u.displayName}</strong></td>
             <td>${u.gender || '미지정'}</td>
-            <td>${u.email}</td>
+            <td>
+              <select class="theme-select" onchange="updateClubRole('${u.uid}', this.value)">
+                <option value="멤버" ${currentRole === '멤버' ? 'selected' : ''}>멤버</option>
+                <option value="운영진" ${currentRole === '운영진' ? 'selected' : ''}>운영진</option>
+                <option value="모임장" ${currentRole === '모임장' ? 'selected' : ''}>모임장</option>
+              </select>
+            </td>
+            <td>${joinDateStr}</td>
+            <td><span style="color:var(--primary-color); font-weight:bold;">${lastJoinedStr}</span></td>
             <td>${u.joinCount || 0}회 / <span style="color:#ef4444;">${u.cancelCount || 0}회</span></td>
             <td><span class="badge badge-${u.status}">${u.status}</span></td>
             <td>
               <input type="text" class="table-input" value="${u.adminMemo || ''}" 
-                     placeholder="메모 입력 후 엔터" onchange="updateMemo('${u.uid}', this.value)">
+                     placeholder="메모 입력" onchange="updateMemo('${u.uid}', this.value)">
             </td>
             <td>
               <button class="btn btn-warning btn-sm" onclick="resetPassword('${u.email}')">비번 초기화</button>
@@ -165,15 +213,25 @@
       });
 
       if (pendingCount === 0) {
-        pTable.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--subtext-color);">대기 중인 신규 가입자가 없습니다.</td></tr>`;
+        pTable.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--subtext-color);">대기 중인 신규 가입자가 없습니다.</td></tr>`;
       }
 
-      // 통계 카드 및 성비 표기
       document.getElementById('statTotalUsers').innerText = `${allUsers.length}명`;
       document.getElementById('statGenderRatio').innerText = `남 ${maleCount}명 / 여 ${femaleCount}명`;
       document.getElementById('statPendingUsers').innerText = `${pendingCount}명`;
       document.getElementById('statBannedUsers').innerText = `${bannedCount}명`;
     }
+
+    // 직책/권한 변경
+    window.updateClubRole = async (uid, newRole) => {
+      const isAdminRole = (newRole === '모임장' || newRole === '운영진') ? 'admin' : 'member';
+      await updateDoc(doc(db, "users", uid), { 
+        clubRole: newRole,
+        role: isAdminRole 
+      });
+      alert(`회원 권한이 '${newRole}'(으)로 변경되었습니다.`);
+      loadAdminData();
+    };
 
     window.approveUser = async (uid) => {
       await updateDoc(doc(db, "users", uid), {
@@ -190,7 +248,6 @@
       }
     };
 
-    // 📝 관리자 메모 작성 시 작성자 표기 (3명 관리자 대응)
     window.updateMemo = async (uid, memoText) => {
       if (!currentAdminUser) return;
       const todayStr = new Date().toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' });
