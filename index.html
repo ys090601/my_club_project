@@ -47,10 +47,9 @@
     <!-- 동적 캘린더 그리드 -->
     <div id="calendar" class="calendar-grid"></div>
 
-    <!-- 📊 캘린더 아래 현황판 (금일 기준 예정된 모든 모임 일정 출력 / 10개 초과시 표 2개 분할) -->
+    <!-- 📊 캘린더 아래 현황판 (금일 기준 향후 모임) -->
     <h3 style="margin-top:35px; margin-bottom:10px; font-size:16px;">📋 금일 기준 향후 모임 일정 현황판</h3>
     <div class="dashboard-parallel-grid" id="statusDashboardGrid">
-      <!-- 테이블 1 (1~10번) -->
       <div class="table-responsive">
         <table>
           <thead>
@@ -66,7 +65,6 @@
         </table>
       </div>
 
-      <!-- 테이블 2 (11번부터 초과 시 동적 출력) -->
       <div class="table-responsive" id="table2Wrapper" style="display:none;">
         <table>
           <thead>
@@ -115,7 +113,7 @@
     </div>
   </div>
 
-  <!-- 📩 일반 멤버 모임 개설 희망 신청 모달 (동일 날짜 모임 존재 시 대안) -->
+  <!-- 📩 일반 멤버 모임 개설 희망 신청 모달 -->
   <div id="requestModal" class="modal-overlay">
     <div class="modal-content">
       <h2 style="color:#eab308;">📩 모임 개설 희망 신청</h2>
@@ -148,6 +146,15 @@
         <button type="submit" class="btn btn-warning" style="width:100%;">운영진에게 개설 희망 신청하기</button>
         <button type="button" class="btn btn-secondary closeModal" style="width:100%; margin-top:6px;">취소</button>
       </form>
+    </div>
+  </div>
+
+  <!-- 모바일 일자별 모임 목록 팝업 모달 -->
+  <div id="dayListModal" class="modal-overlay">
+    <div class="modal-content">
+      <h2 id="dayListTitle">일자별 모임 목록</h2>
+      <div id="dayListContent" style="margin-bottom:15px;"></div>
+      <button class="btn btn-secondary closeModal" style="width:100%;">닫기</button>
     </div>
   </div>
 
@@ -191,7 +198,10 @@
   <div id="detailModal" class="modal-overlay">
     <div class="modal-content">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-        <h2 id="modalTitle" style="margin:0;">모임 상세</h2>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <h2 id="modalTitle" style="margin:0;">모임 상세</h2>
+          <span id="modalStatusBadge"></span>
+        </div>
         <div id="ownerAdminControlBtns" style="display:none; gap:6px;">
           <button id="btnOpenEdit" class="btn btn-sm btn-warning">✏️ 수정</button>
           <button id="btnDeleteEvent" class="btn btn-sm btn-danger">🗑️ 삭제</button>
@@ -205,7 +215,7 @@
         <p><strong>정원:</strong> <span id="modalCapacity"></span></p>
         <p><strong>내용:</strong> <span id="modalDesc" style="white-space:pre-wrap;"></span></p>
         <p id="modalOpenChatArea" style="display:none; margin-top:6px;">
-          <strong>오픈채팅:</strong> <a id="modalOpenChatLink" href="#" target="_blank" class="btn btn-sm btn-warning">💬 오픈채팅방 참여하기</a>
+          <strong>오픈채팅:</strong> <a id="modalOpenChatLink" href="#" target="_blank" class="btn btn-sm btn-warning">💬 오픈채팅방 참여하기 (참석자 전용)</a>
         </p>
       </div>
 

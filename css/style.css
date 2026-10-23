@@ -1,4 +1,3 @@
-/* Root 테마 변수 (기본: Light Mode) */
 :root {
   --bg-color: #f8f9fa;
   --card-bg: #ffffff;
@@ -11,7 +10,6 @@
   --modal-overlay: rgba(0,0,0,0.5);
 }
 
-/* 다크 모드 변수 */
 [data-theme="dark"] {
   --bg-color: #0f172a;
   --card-bg: #1e293b;
@@ -24,13 +22,11 @@
   --modal-overlay: rgba(0,0,0,0.7);
 }
 
-/* 공통 리셋 */
 * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; transition: background-color 0.2s, color 0.2s; }
 body { background-color: var(--bg-color); color: var(--text-color); line-height: 1.6; padding: 15px; }
 .container { max-width: 1100px; margin: 0 auto; background: var(--card-bg); padding: 24px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border: 1px solid var(--border-color); }
 h1, h2, h3 { color: var(--text-color); margin-bottom: 12px; }
 
-/* 상단 헤더 및 버튼 */
 .header-bar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 15px; }
 .btn-group { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 
@@ -40,73 +36,83 @@ h1, h2, h3 { color: var(--text-color); margin-bottom: 12px; }
 .btn-warning { background: #eab308; color: #1e293b; }
 .btn-secondary { background: #64748b; color: #fff; }
 .btn-sm { padding: 5px 10px; font-size: 12px; }
-.btn:hover { opacity: 0.9; }
 
-/* 테마 셀렉터 */
 .theme-select { padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-color); font-size: 12px; cursor: pointer; }
 
-/* 통계 카드 */
 .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 24px; }
 .stat-card { background: var(--bg-color); border: 1px solid var(--border-color); padding: 16px; border-radius: 8px; text-align: center; }
 .stat-card h4 { font-size: 12px; color: var(--subtext-color); margin-bottom: 6px; }
 .stat-card div { font-size: 22px; font-weight: bold; color: var(--primary-color); }
 
-/* 모던 테이블 및 2열 병렬 현황판 레이아웃 */
 .dashboard-parallel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 15px; }
 .table-responsive { width: 100%; overflow-x: auto; margin-bottom: 15px; border-radius: 8px; border: 1px solid var(--border-color); }
 table { width: 100%; border-collapse: collapse; font-size: 12px; text-align: center; }
 th, td { padding: 8px 10px; border-bottom: 1px solid var(--border-color); white-space: nowrap; height: 38px; }
 th { background-color: var(--table-header-bg); color: var(--subtext-color); font-weight: 600; }
-tr:last-child td { border-bottom: none; }
 
-.table-input { width: 100%; min-width: 100px; padding: 4px; border: 1px solid var(--border-color); border-radius: 4px; background: var(--input-bg); color: var(--text-color); font-size: 12px; }
+.table-input { width: 100%; min-width: 80px; padding: 4px; border: 1px solid var(--border-color); border-radius: 4px; background: var(--input-bg); color: var(--text-color); font-size: 12px; }
+
+/* 4단계 상태 뱃지 */
 .badge { display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; }
+.badge-ended { background: #94a3b8; color: #ffffff; } /* 일정 종료 */
+.badge-live { background: #22c55e; color: #ffffff; animation: pulse 1.5s infinite; } /* 진행 중 */
+.badge-closed { background: #ea580c; color: #ffffff; } /* 정원 마감 */
+.badge-open { background: #0284c7; color: #ffffff; } /* 모집 중 */
+
 .badge-pending { background: #fef3c7; color: #b45309; }
 .badge-approved { background: #dcfce7; color: #15803d; }
 .badge-banned { background: #fee2e2; color: #b91c1c; }
 .badge-expanded { background: #e0e7ff; color: #3730a3; }
-.badge-full { background: #ffedd5; color: #c2410c; }
 
-/* 폼 스타일 */
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.6; }
+  100% { opacity: 1; }
+}
+
 .form-group { margin-bottom: 15px; }
 .form-group label { display: block; margin-bottom: 5px; font-weight: 600; font-size: 13px; }
 .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 14px; background: var(--input-bg); color: var(--text-color); }
 
-/* 동적 캘린더 헤더 컨트롤 */
 .calendar-controller { display: flex; justify-content: space-between; align-items: center; margin: 15px 0; background: var(--table-header-bg); padding: 10px 15px; border-radius: 8px; }
 .calendar-controller h2 { margin: 0; font-size: 18px; color: var(--text-color); }
 
-/* 캘린더 그리드 */
+/* 📱 캘린더 7열 고정 및 과거 날짜 Dimmed 스타일 */
 .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
 .calendar-day-header { font-weight: bold; text-align: center; padding: 8px 2px; background: var(--table-header-bg); border-radius: 4px; font-size: 12px; color: var(--subtext-color); }
 .calendar-day-header:first-child { color: #ef4444; }
 .calendar-day-header:last-child { color: #3b82f6; }
 
-.calendar-day { min-height: 90px; border: 1px solid var(--border-color); border-radius: 6px; padding: 4px; background: var(--card-bg); position: relative; display: flex; flex-direction: column; }
-.calendar-day.empty { background: var(--bg-color); opacity: 0.5; }
+.calendar-day { min-height: 90px; border: 1px solid var(--border-color); border-radius: 6px; padding: 4px; background: var(--card-bg); position: relative; display: flex; flex-direction: column; cursor: pointer; }
+.calendar-day.empty { background: var(--bg-color); opacity: 0.4; cursor: default; }
+.calendar-day.past-day { background: var(--bg-color); opacity: 0.65; } /* 지난 날짜 Dimmed */
 .calendar-day.today { border: 2px solid var(--primary-color); }
 .calendar-day .date-num { font-size: 11px; font-weight: bold; color: var(--subtext-color); margin-bottom: 4px; }
 
-.calendar-day.sunday .date-num,
-.calendar-day.holiday .date-num { color: #ef4444 !important; }
+.calendar-day.sunday .date-num, .calendar-day.holiday .date-num { color: #ef4444 !important; }
 .calendar-day.saturday .date-num { color: #3b82f6 !important; }
 .holiday-label { font-size: 10px; color: #ef4444; font-weight: bold; margin-bottom: 3px; }
 
-.event-chip { background: #e0f2fe; color: #0369a1; padding: 3px 5px; border-radius: 4px; font-size: 11px; margin-bottom: 3px; cursor: pointer; border-left: 3px solid #0284c7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.event-chip { background: #e0f2fe; color: #0369a1; padding: 3px 5px; border-radius: 4px; font-size: 11px; margin-bottom: 3px; border-left: 3px solid #0284c7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .event-chip.closed { background: #ffedd5; color: #c2410c; border-left-color: #ea580c; }
+.event-chip.ended { background: #f1f5f9; color: #64748b; border-left-color: #94a3b8; }
+.event-chip.live { background: #dcfce7; color: #15803d; border-left-color: #22c55e; }
 
-/* 모달 */
+.mobile-dot-container { display: none; gap: 3px; margin-top: 4px; flex-wrap: wrap; }
+.mobile-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--primary-color); }
+
 .modal-overlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: var(--modal-overlay); justify-content: center; align-items: center; z-index: 1000; padding: 15px; }
 .modal-overlay.active { display: flex; }
-.modal-content { background: var(--card-bg); padding: 20px; border-radius: 10px; width: 100%; max-width: 500px; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.3); border: 1px solid var(--border-color); }
+.modal-content { background: var(--card-bg); padding: 20px; border-radius: 10px; width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.3); border: 1px solid var(--border-color); }
 
-/* 모바일 전용 */
+/* 모바일 전용 7열 유지 & 닷 표시 분리 */
 @media (max-width: 768px) {
   body { padding: 8px; }
   .container { padding: 12px; }
   .dashboard-parallel-grid { grid-template-columns: 1fr; }
   .header-bar { flex-direction: column; align-items: flex-start; gap: 12px; }
   .header-bar > div { width: 100%; display: flex; justify-content: space-between; align-items: center; }
-  .calendar-day { min-height: 70px; padding: 2px; }
-  .btn { padding: 7px 10px; font-size: 12px; }
+  .calendar-day { min-height: 60px; padding: 2px; }
+  .event-chip { display: none; } /* 모바일에서는 Chip 숨김 */
+  .mobile-dot-container { display: flex; } /* 모바일 점 표기 활성화 */
 }

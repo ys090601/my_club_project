@@ -8,11 +8,10 @@
 </head>
 <body>
   <div class="container">
-    <!-- 헤더 영역 -->
     <div class="header-bar">
       <div>
         <h1>관리자 대시보드</h1>
-        <p style="font-size:12px; color:var(--subtext-color);">회원 권한, 모임 개설 희망 승인, 지정 인원 증설, 가입 인증키 관리</p>
+        <p style="font-size:12px; color:var(--subtext-color);">회원 권한, 페널티 관리, 모임 승인/증설, 인증키 제어</p>
       </div>
       <div class="btn-group">
         <select id="themeSelector" class="theme-select">
@@ -53,7 +52,7 @@
       </div>
     </div>
 
-    <!-- 📥 모임 개설 희망 신청 목록 (관리자 승인 시스템) -->
+    <!-- 📥 모임 개설 희망 신청 목록 -->
     <h3 style="margin-bottom:10px; color:#eab308;">📥 모임 개설 희망 신청 목록</h3>
     <div class="table-responsive">
       <table>
@@ -73,7 +72,7 @@
       </table>
     </div>
 
-    <!-- 🚨 정원 마감 모임 (지정 인원 증설 제어) -->
+    <!-- 🚨 정원 마감 모임 -->
     <h3 style="margin-top:20px; margin-bottom:10px; color:#c2410c;">🚨 인원 증설 대상 모임 일정</h3>
     <div class="table-responsive">
       <table>
@@ -94,7 +93,7 @@
       </table>
     </div>
 
-    <!-- 1. 신규 가입 신청 목록 -->
+    <!-- 신규 가입 신청 목록 -->
     <h3 style="margin-top:20px; margin-bottom:10px;">신규 가입 신청 목록</h3>
     <div class="table-responsive">
       <table>
@@ -115,19 +114,19 @@
       </table>
     </div>
 
-    <!-- 2. 전체 회원 관리 및 권한 설정 목록 -->
-    <h3 style="margin-top:20px; margin-bottom:10px;">전체 회원 목록 및 권한 관리</h3>
+    <!-- 전체 회원 관리 및 페널티/취소이력 관리 -->
+    <h3 style="margin-top:20px; margin-bottom:10px;">전체 회원 목록 및 페널티 관리</h3>
     <div class="table-responsive">
       <table>
         <thead>
           <tr>
             <th>이름</th>
-            <th>성별</th>
-            <th>직책 / 권한</th>
+            <th>직책/권한</th>
             <th>가입일자</th>
-            <th>마지막 참여일</th>
-            <th>참여 / 취소</th>
-            <th>상태</th>
+            <th>실제참여 완료</th>
+            <th>취소/노쇼</th>
+            <th>상태/경고</th>
+            <th>취소이력</th>
             <th>관리자 메모</th>
             <th>조치</th>
           </tr>
@@ -139,11 +138,31 @@
     </div>
   </div>
 
+  <!-- 회원 취소 사유 히스토리 모달 -->
+  <div id="cancelHistoryModal" class="modal-overlay">
+    <div class="modal-content">
+      <h2 id="historyUserTitle">회원 취소 사유 히스토리</h2>
+      <div class="table-responsive" style="margin-top:10px;">
+        <table>
+          <thead>
+            <tr>
+              <th>모임명</th>
+              <th>취소 일시</th>
+              <th>취소 사유</th>
+            </tr>
+          </thead>
+          <tbody id="historyTableBody"></tbody>
+        </table>
+      </div>
+      <button class="btn btn-secondary closeModal" style="width:100%; margin-top:10px;">닫기</button>
+    </div>
+  </div>
+
   <script type="module">
     import { db } from './js/firebase-config.js';
     import { checkAuth, resetUserPassword } from './js/auth.js';
     import { 
-      collection, getDocs, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, serverTimestamp 
+      collection, getDocs, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, query, where, serverTimestamp, increment 
     } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     let currentAdminUser = null;
@@ -172,15 +191,11 @@
 
     document.getElementById('updateAuthKeyBtn').onclick = async () => {
       const newKey = document.getElementById('currentAuthKeyInput').value.trim();
-      if (!newKey) {
-        alert("인증키를 입력하세요.");
-        return;
-      }
+      if (!newKey) return alert("인증키를 입력하세요.");
       await setDoc(doc(db, "settings", "system"), { authKey: newKey }, { merge: true });
       alert("회원가입 인증키가 변경되었습니다!");
     };
 
-    // 📥 모임 개설 희망 신청 목록 로드
     async function loadPendingEvents() {
       const pSnap = await getDocs(collection(db, "pendingEvents"));
       const pTable = document.getElementById('pendingEventsTable');
@@ -191,17 +206,14 @@
         pendingCnt++;
         const pe = docSnap.data();
         const peId = docSnap.id;
-        const peDate = new Date(pe.date).toLocaleString('ko-KR');
-
         pTable.innerHTML += `
           <tr>
-            <td><strong>${peDate}</strong></td>
+            <td><strong>${new Date(pe.date).toLocaleString('ko-KR')}</strong></td>
             <td>${pe.title}</td>
             <td>${pe.hostDisplayName || pe.hostName}</td>
             <td>${pe.location} (${pe.maxParticipants}명)</td>
             <td style="text-align:left; font-size:11px;">
-              <strong>사유:</strong> ${pe.requestReason || '없음'}<br>
-              <strong>내용:</strong> ${pe.description}
+              <strong>사유:</strong> ${pe.requestReason || '없음'}<br><strong>상세:</strong> ${pe.description}
             </td>
             <td>
               <button class="btn btn-sm btn-success" onclick="approvePendingEvent('${peId}')">승인 및 등록</button>
@@ -211,52 +223,32 @@
         `;
       });
 
-      if (pendingCnt === 0) {
-        pTable.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--subtext-color);">대기 중인 모임 개설 희망 신청이 없습니다.</td></tr>`;
-      }
+      if (pendingCnt === 0) pTable.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--subtext-color);">대기 중인 신청이 없습니다.</td></tr>`;
       document.getElementById('statPendingEvents').innerText = `${pendingCnt}건`;
     }
 
-    // 모임 개설 희망 승인 (실제 모임 일정으로 승인 개설 등록)
     window.approvePendingEvent = async (pendingId) => {
       const peSnap = await getDoc(doc(db, "pendingEvents", pendingId));
       if (!peSnap.exists()) return;
-
       const pe = peSnap.data();
-      
-      // events 컬렉션으로 복사 생성
       await addDoc(collection(db, "events"), {
-        title: pe.title,
-        date: pe.date,
-        location: pe.location,
-        maxParticipants: pe.maxParticipants,
-        expansionCount: 0,
-        currentCount: 0,
-        description: pe.description,
-        openChatUrl: "",
-        createdBy: pe.createdBy,
-        hostName: pe.hostName,
-        hostDisplayName: pe.hostDisplayName,
-        status: "approved",
-        createdAt: serverTimestamp()
+        title: pe.title, date: pe.date, location: pe.location, maxParticipants: pe.maxParticipants,
+        expansionCount: 0, currentCount: 0, description: pe.description, openChatUrl: "",
+        createdBy: pe.createdBy, hostName: pe.hostName, hostDisplayName: pe.hostDisplayName,
+        status: "approved", createdAt: serverTimestamp()
       });
-
-      // 신청건 삭제
       await deleteDoc(doc(db, "pendingEvents", pendingId));
-      alert("모임 개설 신청이 승인되어 정식 캘린더 모임 일정으로 등록되었습니다!");
+      alert("개설 희망 신청이 승인되어 캘린더에 정식 등록되었습니다!");
       loadPendingEvents();
     };
 
-    // 모임 개설 희망 반려
     window.rejectPendingEvent = async (pendingId) => {
-      if (confirm("이 개설 희망 신청을 반려 삭제하시겠습니까?")) {
+      if (confirm("신청을 반려하시겠습니까?")) {
         await deleteDoc(doc(db, "pendingEvents", pendingId));
-        alert("반려 처리되었습니다.");
         loadPendingEvents();
       }
     };
 
-    // 🚨 정원 마감 모임 조회 및 관리자 지정 인원 증설 처리
     async function loadFullEvents() {
       const eSnap = await getDocs(collection(db, "events"));
       const fTable = document.getElementById('fullEventsTable');
@@ -268,80 +260,59 @@
         const eId = docSnap.id;
         if (e.currentCount >= e.maxParticipants) {
           fullCnt++;
-          const eDate = new Date(e.date).toLocaleString('ko-KR');
-          const expCount = e.expansionCount || 0;
-
           fTable.innerHTML += `
             <tr>
-              <td>${eDate}</td>
+              <td>${new Date(e.date).toLocaleString('ko-KR')}</td>
               <td><strong>${e.title}</strong></td>
               <td>${e.hostDisplayName || e.hostName || '관리자'}</td>
               <td>${e.currentCount} / ${e.maxParticipants}명</td>
-              <td><span class="badge badge-expanded">${expCount}회 증설됨</span></td>
-              <td>
-                <input type="number" id="addCapacity_${eId}" class="table-input" value="2" min="1" style="width:70px; text-align:center;"> 명
-              </td>
-              <td>
-                <button class="btn btn-sm btn-success" onclick="expandEventCapacity('${eId}', ${e.maxParticipants}, ${expCount})">➕ 인원 증설</button>
-              </td>
+              <td><span class="badge badge-expanded">${e.expansionCount || 0}회 증설됨</span></td>
+              <td><input type="number" id="addCapacity_${eId}" class="table-input" value="2" min="1" style="width:60px; text-align:center;"> 명</td>
+              <td><button class="btn btn-sm btn-success" onclick="expandEventCapacity('${eId}', ${e.maxParticipants}, ${e.expansionCount || 0})">➕ 인원 증설</button></td>
             </tr>
           `;
         }
       });
 
-      if (fullCnt === 0) {
-        fTable.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--subtext-color);">현재 정원이 마감된 인원 증설 대상 모임이 없습니다.</td></tr>`;
-      }
+      if (fullCnt === 0) fTable.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--subtext-color);">정원 마감 대상 모임이 없습니다.</td></tr>`;
       document.getElementById('statFullEvents').innerText = `${fullCnt}건`;
     }
 
     window.expandEventCapacity = async (eventId, currentMax, currentExpCount) => {
-      const addInput = document.getElementById(`addCapacity_${eventId}`);
-      const addVal = addInput ? parseInt(addInput.value) : 2;
-
-      if (isNaN(addVal) || addVal <= 0) {
-        alert("올바른 증설 인원수를 입력해 주세요.");
-        return;
-      }
-
-      const newMax = currentMax + addVal;
-      const newExpCount = currentExpCount + 1;
-
+      const addVal = parseInt(document.getElementById(`addCapacity_${eventId}`).value) || 2;
       await updateDoc(doc(db, "events", eventId), {
-        maxParticipants: newMax,
-        expansionCount: newExpCount
+        maxParticipants: currentMax + addVal,
+        expansionCount: currentExpCount + 1
       });
-
-      alert(`정원이 +${addVal}명 증설되어 총 ${newMax}명이 되었습니다! (누적 증설 횟수: ${newExpCount}회)`);
+      alert(`정원이 +${addVal}명 증설되었습니다.`);
       loadFullEvents();
     };
 
     async function loadAdminData() {
       const allSnap = await getDocs(collection(db, "users"));
       const allUsers = [];
-      let pendingCount = 0;
-      let bannedCount = 0;
-      let maleCount = 0;
-      let femaleCount = 0;
+      let pendingCount = 0, bannedCount = 0;
 
       const pTable = document.getElementById('pendingUsersTable');
       const aTable = document.getElementById('allUsersTable');
       pTable.innerHTML = '';
       aTable.innerHTML = '';
 
+      const now = new Date();
+      const ninetyDaysMs = 90 * 24 * 60 * 60 * 1000;
+
       allSnap.forEach(uSnap => {
         const u = uSnap.data();
         allUsers.push(u);
 
-        if (u.gender === '남성') maleCount++;
-        else if (u.gender === '여성') femaleCount++;
-
-        const joinDateStr = u.approvedAt ? new Date(u.approvedAt.toDate()).toLocaleDateString('ko-KR') : (u.createdAt ? new Date(u.createdAt.toDate()).toLocaleDateString('ko-KR') : '-');
-        const lastJoinedStr = u.lastJoinedAt ? new Date(u.lastJoinedAt.toDate()).toLocaleDateString('ko-KR') : '참여 내역 없음';
+        const approvedDate = u.approvedAt ? u.approvedAt.toDate() : (u.createdAt ? u.createdAt.toDate() : null);
+        const joinDateStr = approvedDate ? approvedDate.toLocaleDateString('ko-KR') : '-';
+        
+        // 3개월(90일) 내 미참여 판별
+        const isInactive3Months = approvedDate && (now - approvedDate > ninetyDaysMs) && ((u.actualJoinCount || 0) === 0);
 
         if (u.status === 'pending') {
           pendingCount++;
-          const regDate = u.createdAt ? new Date(u.createdAt.toDate()).toLocaleDateString('ko-KR') : '-';
           pTable.innerHTML += `
             <tr>
               <td><strong>${u.name || '-'}</strong></td>
@@ -349,22 +320,18 @@
               <td>${u.gender || '미지정'}</td>
               <td>${u.nickname}</td>
               <td>${u.email}</td>
-              <td>${regDate}</td>
-              <td>
-                <button class="btn btn-success btn-sm" onclick="approveUser('${u.uid}')">승인하기</button>
-              </td>
+              <td>${u.createdAt ? new Date(u.createdAt.toDate()).toLocaleDateString('ko-KR') : '-'}</td>
+              <td><button class="btn btn-success btn-sm" onclick="approveUser('${u.uid}')">승인하기</button></td>
             </tr>
           `;
         }
 
         if (u.status === 'banned') bannedCount++;
-
         const currentRole = u.clubRole || '멤버';
 
         aTable.innerHTML += `
           <tr>
             <td><strong>${u.name || u.displayName}</strong></td>
-            <td>${u.gender || '미지정'}</td>
             <td>
               <select class="theme-select" onchange="updateClubRole('${u.uid}', this.value)">
                 <option value="멤버" ${currentRole === '멤버' ? 'selected' : ''}>멤버</option>
@@ -373,72 +340,93 @@
               </select>
             </td>
             <td>${joinDateStr}</td>
-            <td><span style="color:var(--primary-color); font-weight:bold;">${lastJoinedStr}</span></td>
+            <td><strong>${u.actualJoinCount || 0}회</strong></td>
             <td>${u.joinCount || 0}회 / <span style="color:#ef4444;">${u.cancelCount || 0}회</span></td>
-            <td><span class="badge badge-${u.status}">${u.status}</span></td>
             <td>
-              <input type="text" class="table-input" value="${u.adminMemo || ''}" 
-                     placeholder="메모 입력" onchange="updateMemo('${u.uid}', this.value)">
+              <span class="badge badge-${u.status}">${u.status}</span>
+              ${isInactive3Months ? `<span class="badge badge-banned" style="display:block; margin-top:2px;">⚠️ 3개월 미참여</span>` : ''}
+            </td>
+            <td><button class="btn btn-sm btn-secondary" onclick="viewCancelHistory('${u.uid}', '${u.name}')">사유 조회</button></td>
+            <td>
+              <input type="text" class="table-input" value="${u.adminMemo || ''}" placeholder="메모 입력" onchange="updateMemo('${u.uid}', this.value)">
             </td>
             <td>
-              <button class="btn btn-warning btn-sm" onclick="resetPassword('${u.email}')">비번 초기화</button>
-              <button class="btn btn-danger btn-sm" onclick="banUser('${u.uid}')">강퇴</button>
+              <button class="btn btn-warning btn-sm" onclick="penaltyDeduct('${u.uid}')">노쇼 차감</button>
+              <button class="btn btn-danger btn-sm" onclick="banUser('${u.uid}')">강퇴/휴회</button>
             </td>
           </tr>
         `;
       });
 
-      if (pendingCount === 0) {
-        pTable.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--subtext-color);">대기 중인 신규 가입자가 없습니다.</td></tr>`;
-      }
-
+      if (pendingCount === 0) pTable.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--subtext-color);">대기 회원이 없습니다.</td></tr>`;
       document.getElementById('statTotalUsers').innerText = `${allUsers.length}명`;
-      document.getElementById('statGenderRatio').innerText = `남 ${maleCount}명 / 여 ${femaleCount}명`;
       document.getElementById('statPendingUsers').innerText = `${pendingCount}명`;
-      document.getElementById('statBannedUsers').innerText = `${bannedCount}명`;
     }
+
+    window.penaltyDeduct = async (uid) => {
+      if (confirm("무단 불참(노쇼)으로 판단하여 해당 회원의 완료 참여 횟수를 1회 차감하시겠습니까?")) {
+        await updateDoc(doc(db, "users", uid), { actualJoinCount: increment(-1) });
+        alert("참여 횟수가 1회 차감되었습니다.");
+        loadAdminData();
+      }
+    };
+
+    window.viewCancelHistory = async (uid, name) => {
+      document.getElementById('historyUserTitle').innerText = `${name} 회원의 취소 사유 히스토리`;
+      const tbody = document.getElementById('historyTableBody');
+      tbody.innerHTML = '<tr><td colspan="3">조회 중...</td></tr>';
+      
+      const rSnap = await getDocs(query(collection(db, "rsvps"), where("uid", "==", uid)));
+      tbody.innerHTML = '';
+      let count = 0;
+
+      rSnap.forEach(rDoc => {
+        const r = rDoc.data();
+        if (r.cancelReason) {
+          count++;
+          tbody.innerHTML += `
+            <tr>
+              <td>${r.eventTitle || '모임'}</td>
+              <td>${r.canceledAt ? new Date(r.canceledAt.toDate()).toLocaleString('ko-KR') : '-'}</td>
+              <td style="color:#ef4444;">${r.cancelReason}</td>
+            </tr>
+          `;
+        }
+      });
+
+      if (count === 0) tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;">취소 사유 기록이 없습니다.</td></tr>';
+      document.getElementById('cancelHistoryModal').classList.add('active');
+    };
 
     window.updateClubRole = async (uid, newRole) => {
       const isAdminRole = (newRole === '모임장' || newRole === '운영진') ? 'admin' : 'member';
-      await updateDoc(doc(db, "users", uid), { 
-        clubRole: newRole,
-        role: isAdminRole 
-      });
-      alert(`회원 권한이 '${newRole}'(으)로 변경되었습니다.`);
+      await updateDoc(doc(db, "users", uid), { clubRole: newRole, role: isAdminRole });
+      alert("권한이 변경되었습니다.");
       loadAdminData();
     };
 
     window.approveUser = async (uid) => {
-      await updateDoc(doc(db, "users", uid), {
-        status: "approved",
-        approvedAt: serverTimestamp()
-      });
+      await updateDoc(doc(db, "users", uid), { status: "approved", approvedAt: serverTimestamp() });
       alert("가입이 승인되었습니다.");
       loadAdminData();
     };
 
-    window.resetPassword = (email) => {
-      if (confirm(`${email} 회원에게 비밀번호 재설정 이메일을 발송하시겠습니까?`)) {
-        resetUserPassword(email);
-      }
-    };
-
     window.updateMemo = async (uid, memoText) => {
-      if (!currentAdminUser) return;
-      const todayStr = new Date().toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' });
-      const formattedMemo = `${memoText} (by ${currentAdminUser.name}, ${todayStr})`;
-
-      await updateDoc(doc(db, "users", uid), { adminMemo: formattedMemo });
-      alert("관리자 메모가 저장되었습니다.");
-      loadAdminData();
+      await updateDoc(doc(db, "users", uid), { adminMemo: `${memoText} (by ${currentAdminUser.name})` });
     };
 
     window.banUser = async (uid) => {
-      if (confirm("정말 이 회원을 강퇴 처리하시겠습니까?")) {
-        await updateDoc(doc(db, "users", uid), { status: "banned" });
+      const statusType = prompt("상태 변경 선택: 'banned'(강퇴) 또는 'paused'(휴회) 입력", "banned");
+      if (statusType === 'banned' || statusType === 'paused') {
+        await updateDoc(doc(db, "users", uid), { status: statusType });
+        alert(`상태가 ${statusType}(으)로 변경되었습니다.`);
         loadAdminData();
       }
     };
+
+    document.querySelectorAll('.closeModal').forEach(btn => {
+      btn.onclick = () => document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
+    });
   </script>
 </body>
 </html>
