@@ -20,12 +20,16 @@
           <option value="light">☀️ 밝은 모드</option>
           <option value="dark">🌙 어두운 모드</option>
         </select>
+        <button id="notificationBell" class="btn btn-secondary" type="button">🔔 알림 0</button>
         <a href="rules.html" class="btn btn-warning">공지사항</a>
         <a href="admin.html" id="adminBtn" class="btn" style="display:none;">관리자</a>
         <button id="logoutBtn" class="btn btn-danger">로그아웃</button>
       </div>
     </div>
 
+    <section id="notificationPanel" hidden aria-label="알림함" class="notification-panel">
+      <h3>알림함</h3><div id="notificationList">알림이 없습니다.</div>
+    </section>
     <!-- 주요 고정 공지 배너 -->
     <div id="mainPinnedNotice" style="display:none; background:#fffbeb; border:1px solid #fef3c7; color:#b45309; padding:12px 15px; border-radius:8px; margin-bottom:15px; font-size:13px;">
       <strong id="pinnedNoticeTitle">📌 주요 공지사항</strong>

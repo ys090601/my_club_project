@@ -116,3 +116,6 @@ th { background-color: var(--table-header-bg); color: var(--subtext-color); font
   .event-chip { display: none; } /* 모바일에서는 Chip 숨김 */
   .mobile-dot-container { display: flex; } /* 모바일 점 표기 활성화 */
 }
+.notification-panel {border:1px solid var(--border-color);border-radius:10px;padding:16px;margin-bottom:16px;background:var(--table-header-bg)}
+.notification-panel[hidden] {display:none}
+.notification-item {display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border-color)}

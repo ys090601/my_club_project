@@ -162,7 +162,7 @@
     import { db } from './js/firebase-config.js';
     import { checkAuth, resetUserPassword } from './js/auth.js';
     import { 
-      collection, getDocs, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, query, where, serverTimestamp, increment 
+      collection, getDocs, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, query, where, serverTimestamp, increment, runTransaction 
     } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     let currentAdminUser = null;
@@ -365,30 +365,38 @@
 
     window.penaltyDeduct = async (uid) => {
       if (confirm("무단 불참(노쇼)으로 판단하여 해당 회원의 완료 참여 횟수를 1회 차감하시겠습니까?")) {
-        await updateDoc(doc(db, "users", uid), { actualJoinCount: increment(-1) });
+        await runTransaction(db, async tx => {
+          const userRef = doc(db, 'users', uid);
+          const snap = await tx.get(userRef);
+          if (!snap.exists()) throw new Error('회원정보가 없습니다.');
+          tx.update(userRef, { actualJoinCount: Math.max(0, Number(snap.data().actualJoinCount || 0) - 1) });
+        });
         alert("참여 횟수가 1회 차감되었습니다.");
         loadAdminData();
       }
     };
 
+    function escapeHTML(value) {
+      return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+    }
     window.viewCancelHistory = async (uid, name) => {
       document.getElementById('historyUserTitle').innerText = `${name} 회원의 취소 사유 히스토리`;
       const tbody = document.getElementById('historyTableBody');
       tbody.innerHTML = '<tr><td colspan="3">조회 중...</td></tr>';
       
-      const rSnap = await getDocs(query(collection(db, "rsvps"), where("uid", "==", uid)));
+      const rSnap = await getDocs(query(collection(db, "cancelLogs"), where("uid", "==", uid)));
       tbody.innerHTML = '';
       let count = 0;
 
       rSnap.forEach(rDoc => {
         const r = rDoc.data();
-        if (r.cancelReason) {
+        if (r.reason) {
           count++;
           tbody.innerHTML += `
             <tr>
               <td>${r.eventTitle || '모임'}</td>
-              <td>${r.canceledAt ? new Date(r.canceledAt.toDate()).toLocaleString('ko-KR') : '-'}</td>
-              <td style="color:#ef4444;">${r.cancelReason}</td>
+              <td>${r.createdAt ? new Date(r.createdAt.toDate()).toLocaleString('ko-KR') : '-'}</td>
+              <td style="color:#ef4444;">${escapeHTML(r.reason)}</td>
             </tr>
           `;
         }

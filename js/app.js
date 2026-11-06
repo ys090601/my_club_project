@@ -1,13 +1,14 @@
 import { db } from './firebase-config.js';
 import { checkAuth } from './auth.js';
 import { 
-  collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, setDoc, query, where, orderBy, serverTimestamp, runTransaction, writeBatch 
+  collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, setDoc, query, where, orderBy, serverTimestamp, runTransaction, writeBatch, onSnapshot 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 let currentUser = null;
 let currentEvent = null;
 let currentDate = new Date();
 let cachedEvents = []; // 메모리 캐싱으로 DB 읽기 비용 최소화
+let stopEventsListener = null;
 
 const HOLIDAYS = {
   fixed: {
@@ -28,6 +29,15 @@ function getHolidayName(year, month, date) {
   return HOLIDAYS.fixed[`${mm}-${dd}`] || HOLIDAYS.variable[`${year}-${mm}-${dd}`] || null;
 }
 
+// 승인 후 30일 이내 회원을 신규 회원으로 분류합니다.
+function isNewbieUser(approvedAt) {
+  if (!approvedAt) return false;
+  const date = approvedAt.toDate ? approvedAt.toDate() : new Date(approvedAt);
+  return Number.isFinite(date.getTime()) && (Date.now() - date.getTime()) < 30 * 86400000;
+}
+function escapeHTML(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
 // YYYY-MM-DD 규격화 헬퍼 함수
 function formatDateKey(dateObj) {
   const y = dateObj.getFullYear();
@@ -88,6 +98,7 @@ checkAuth(async (userData) => {
 
   loadPinnedNotice();
   refreshCalendarData();
+  initNotifications(userData.uid);
 });
 
 async function loadPinnedNotice() {
@@ -102,26 +113,16 @@ async function loadPinnedNotice() {
 }
 
 // 🚀 부분 DOM 동적 갱신 (전체 리로드 대신 데이터 재호출)
-async function refreshCalendarData() {
-  try {
-    const todayKey = formatDateKey(new Date());
-    // DB 읽기 최적화: 금일 이전 지난달 데이터 무분별 로딩 방지
-    const q = query(collection(db, "events"), orderBy("date", "asc"));
-    const snap = await getDocs(q);
-    
-    cachedEvents = [];
-    snap.forEach(docSnap => {
-      const e = docSnap.data();
-      e.id = docSnap.id;
-      cachedEvents.push(e);
-    });
-
+function refreshCalendarData() {
+  // 실시간 구독은 한 번만 연결합니다. 페이지를 닫으면 자동 해제됩니다.
+  if (stopEventsListener) return;
+  stopEventsListener = onSnapshot(query(collection(db, 'events'), orderBy('date', 'asc')), snap => {
+    cachedEvents = snap.docs.map(d => ({ ...d.data(), id: d.id }));
     renderCalendar();
     renderUpcomingEventsDashboard();
-  } catch (err) {
-    console.error("데이터 로딩 중 네트워크 예외 발생:", err);
-  }
+  }, err => console.error('모임 실시간 조회 실패:', err));
 }
+window.addEventListener('pagehide', () => { if (stopEventsListener) stopEventsListener(); });
 
 // 캘린더 렌더링 (모바일 점 표기 & 과거 날짜 Dimmed)
 function renderCalendar() {
@@ -212,7 +213,7 @@ window.handleDayClick = (year, month, date) => {
     const statusInfo = getEventStatusInfo(evt);
     content.innerHTML += `
       <div style="padding:10px; border-bottom:1px solid var(--border-color); cursor:pointer;" onclick="closeModalAndOpenDetail('${evt.id}')">
-        <strong>${evt.title}</strong> <span class="badge ${statusInfo.badgeClass}">${statusInfo.text}</span><br>
+        <strong>${escapeHTML(evt.title)}</strong> <span class="badge ${statusInfo.badgeClass}">${statusInfo.text}</span><br>
         <span style="font-size:12px; color:var(--subtext-color);">시간: ${new Date(evt.date).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} | 정원: ${evt.currentCount}/${evt.maxParticipants}</span>
       </div>
     `;
@@ -267,8 +268,8 @@ async function renderUpcomingEventsDashboard() {
     return `
       <tr onclick="openDetailModalById('${evt.id}')" style="cursor:pointer;">
         <td><strong>${dateStr}</strong></td>
-        <td>${evt.title} <span class="badge ${statusInfo.badgeClass}">${statusInfo.text}</span></td>
-        <td>${evt.hostDisplayName || evt.hostName || '관리자'}</td>
+        <td>${escapeHTML(evt.title)} <span class="badge ${statusInfo.badgeClass}">${statusInfo.text}</span></td>
+        <td>${escapeHTML(evt.hostDisplayName || evt.hostName || '관리자')}</td>
         <td>${evt.currentCount || 0}/${evt.maxParticipants} (${newbieCnt}명)</td>
         <td>${expandTimes > 0 ? `<span class="badge badge-expanded">${expandTimes}회 증설</span>` : '<span style="color:var(--subtext-color);">0회</span>'}</td>
       </tr>
@@ -322,6 +323,7 @@ async function loadRSVPList(isAdmin) {
   pList.innerHTML = ''; wList.innerHTML = '';
 
   let isAttendingUser = false;
+  let hasOffer = false;
 
   rsvpQuery.forEach((rSnap) => {
     const rData = rSnap.data();
@@ -329,14 +331,17 @@ async function loadRSVPList(isAdmin) {
       isAttendingUser = true;
     }
 
+    if (rData.uid === currentUser.uid && rData.status === 'offered') hasOffer = true;
     const li = document.createElement('li');
     li.innerText = `${rData.displayName}${rData.isNewbie ? " 🔰(신입)" : ""}`;
     if (rData.cancelReason) li.innerText += ` (취소사유: ${rData.cancelReason})`;
 
     if (rData.status === 'attending') pList.appendChild(li);
-    else if (rData.status === 'waiting') wList.appendChild(li);
+    else if (rData.status === 'waiting' || rData.status === 'offered') wList.appendChild(li);
   });
 
+  const offerSection = document.getElementById('waitlistConfirmSection');
+  if (offerSection) offerSection.style.display = hasOffer ? 'block' : 'none';
   // 🔒 오픈채팅방 접근 제어: 참석확정자 및 관리자만 노출
   const chatArea = document.getElementById('modalOpenChatArea');
   if (currentEvent.openChatUrl && (isAttendingUser || isAdmin)) {
@@ -407,6 +412,7 @@ document.getElementById('btnCancel').onclick = async () => {
   const eventTime = new Date(currentEvent.date).getTime();
   const hoursDiff = (eventTime - new Date().getTime()) / (1000 * 60 * 60);
 
+  if (hoursDiff <= 0) return alert("모임 시작 후에는 관리자에게 참석 기록 정정을 요청해 주세요.");
   let cancelReason = "";
   if (hoursDiff < 24) {
     cancelReason = prompt("모임 시작 24시간 이내 취소 시 취소 사유를 입력해야 합니다:");
@@ -419,11 +425,11 @@ document.getElementById('btnCancel').onclick = async () => {
       if (!rsvpSnap.exists()) throw new Error("신청 내역이 없습니다.");
 
       const rsvpData = rsvpSnap.data();
+      const eventSnap = await transaction.get(eventDocRef); // 모든 읽기를 쓰기 전에 수행
+      if (!eventSnap.exists()) throw new Error('모임이 존재하지 않습니다.');
+      const eventData = eventSnap.data();
       transaction.delete(rsvpDocRef);
-
       if (rsvpData.status === "attending") {
-        const eventSnap = await transaction.get(eventDocRef);
-        const eventData = eventSnap.data();
         transaction.update(eventDocRef, { currentCount: Math.max(0, (eventData.currentCount || 1) - 1) });
       }
     });
@@ -432,6 +438,7 @@ document.getElementById('btnCancel').onclick = async () => {
       await addDoc(collection(db, "cancelLogs"), {
         uid: currentUser.uid,
         eventId: currentEvent.id,
+        eventTitle: currentEvent.title,
         reason: cancelReason,
         createdAt: serverTimestamp()
       });
@@ -550,3 +557,100 @@ document.querySelectorAll('.closeModal').forEach(btn => {
 document.getElementById('openCreateModalBtn').onclick = () => {
   document.getElementById('createModal').classList.add('active');
 };
+// 본인에게 발송된 알림만 실시간 조회합니다.
+function initNotifications(uid) {
+  const bell = document.getElementById('notificationBell');
+  const panel = document.getElementById('notificationPanel');
+  if (!bell || !panel) return;
+  // 알림 패널 열기/닫기는 index.html에서 단일 관리합니다.
+  const stop = onSnapshot(query(collection(db, 'notifications'), where('uid', '==', uid)), snap => {
+    const items = snap.docs.map(d => ({id:d.id,...d.data()}));
+    const badge = document.getElementById('notificationBadge');
+    const unread = items.filter(x => !x.read).length;
+    if (badge) { badge.textContent = String(unread); badge.style.display = unread ? 'inline-block' : 'none'; }
+    const list = document.getElementById('notificationList');
+    list.replaceChildren();
+    for (const item of items.sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0))) {
+      const row = document.createElement('div'); row.className = 'notification-item';
+      const text = document.createElement('span'); text.textContent = item.message || '새 알림';
+      const button = document.createElement('button'); button.className = 'btn btn-secondary';
+      button.textContent = item.read ? '확인함' : '읽음'; button.disabled = !!item.read;
+      button.onclick = () => updateDoc(doc(db,'notifications',item.id),{read:true}).catch(console.error);
+      row.append(text, button); list.append(row);
+    }
+    if (!panel.dataset.opened && items.some(x=>x.important && !x.read)) {
+      panel.style.display = 'block'; bell.setAttribute('aria-expanded', 'true'); panel.dataset.opened = '1';
+    }
+  }, console.error);
+  window.addEventListener('pagehide', stop, {once:true});
+}
+
+
+// 일정 수정: 모임장/운영진 또는 해당 모임 개설자만 가능
+const editForm = document.getElementById('editEventForm');
+const editButton = document.getElementById('btnOpenEdit');
+const adminRole = () => currentUser && (currentUser.role === 'admin' || ['모임장','운영진'].includes(currentUser.clubRole));
+if (editButton) editButton.addEventListener('click', () => {
+  if (!currentEvent || !(adminRole() || currentEvent.createdBy === currentUser?.uid)) return;
+  const e = currentEvent;
+  document.getElementById('editEventId').value = e.id;
+  document.getElementById('editEventTitle').value = e.title || '';
+  document.getElementById('editEventDate').value = String(e.date || '').slice(0,16);
+  document.getElementById('editEventLocation').value = e.location || '';
+  document.getElementById('editEventMax').value = e.maxParticipants || 1;
+  document.getElementById('editEventDesc').value = e.description || '';
+  document.getElementById('editEventOpenChat').value = e.openChatUrl || '';
+  document.getElementById('editMaxGroup').style.display = adminRole() ? 'block' : 'none';
+  document.getElementById('editOpenChatGroup').style.display = adminRole() ? 'block' : 'none';
+  document.getElementById('detailModal').classList.remove('active');
+  document.getElementById('editModal').classList.add('active');
+});
+if (editForm) editForm.addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  if (!currentEvent || !(adminRole() || currentEvent.createdBy === currentUser?.uid)) return;
+  const date = document.getElementById('editEventDate').value;
+  const location = document.getElementById('editEventLocation').value.trim();
+  const description = document.getElementById('editEventDesc').value.trim();
+  if (!date || !location || !description || Number.isNaN(new Date(date).getTime())) return alert('필수 항목을 확인하세요.');
+  const changes = {date, location, description};
+  if (adminRole()) {
+    const max = Number(document.getElementById('editEventMax').value);
+    if (!Number.isInteger(max) || max < Math.max(1, currentEvent.currentCount || 0)) return alert('정원은 현재 참석 인원 이상이어야 합니다.');
+    changes.maxParticipants = max;
+    const url = document.getElementById('editEventOpenChat').value.trim();
+    if (url && (!/^https:\/\//i.test(url) || !/^https:\/\/(open\.kakao\.com|invite\.kakao\.com)\//i.test(url))) return alert('카카오 오픈채팅 HTTPS 주소를 입력하세요.');
+    changes.openChatUrl = url;
+  }
+  try {
+    await updateDoc(doc(db,'events',currentEvent.id),changes);
+    document.getElementById('editModal').classList.remove('active');
+    alert('모임 정보가 수정되었습니다.');
+    refreshCalendarData();
+  } catch (err) { console.error(err); alert('수정 실패: 권한 및 네트워크를 확인하세요.'); }
+});
+
+// 대기자: 관리자가 먼저 waiting -> offered 상태로 전환한 경우에만 참석 확인 가능.
+// 정원 증가는 확인 시 트랜잭션으로 수행합니다.
+const confirmWaitlist = document.getElementById('btnConfirmWaitlist');
+const declineWaitlist = document.getElementById('btnDeclineWaitlist');
+async function respondToWaitlist(accept) {
+  if (!currentEvent || !currentUser) return;
+  const rRef = doc(db,'rsvps',`${currentEvent.id}_${currentUser.uid}`);
+  const eRef = doc(db,'events',currentEvent.id);
+  try {
+    await runTransaction(db,async tx => {
+      const r = await tx.get(rRef), e = await tx.get(eRef);
+      if (!r.exists() || r.data().status !== 'offered' || !e.exists()) throw new Error('유효한 참석 확인 요청이 없습니다.');
+      if (accept) {
+        if ((e.data().currentCount || 0) >= e.data().maxParticipants + (isNewbieUser(currentUser.approvedAt) ? 2 : 0)) throw new Error('남은 자리가 없습니다.');
+        tx.update(eRef,{currentCount:(e.data().currentCount || 0)+1});
+        tx.update(rRef,{status:'attending',respondedAt:serverTimestamp()});
+      } else tx.delete(rRef);
+    });
+    alert(accept ? '참석이 확정되었습니다.' : '대기 신청을 취소했습니다.');
+    document.getElementById('detailModal').classList.remove('active');
+    refreshCalendarData();
+  } catch (err) { alert(err.message || '처리 중 오류가 발생했습니다.'); }
+}
+if (confirmWaitlist) confirmWaitlist.onclick = () => respondToWaitlist(true);
+if (declineWaitlist) declineWaitlist.onclick = () => respondToWaitlist(false);

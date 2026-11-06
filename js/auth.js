@@ -159,7 +159,7 @@ if (loginForm) {
           await signOut(auth);
           return;
         }
-        if (userData.status === "banned") {
+        if (userData.status === "banned" || userData.status === "paused") {
           alert("이용이 정지된 계정입니다.");
           await signOut(auth);
           return;
@@ -207,6 +207,12 @@ export function checkAuth(callback) {
           if (tSel) tSel.value = userData.themePreference;
         }
 
+        if (userData.status !== 'approved') {
+          alert(userData.status === 'pending' ? '관리자 승인 대기 중입니다.' : '이용할 수 없는 계정입니다.');
+          await signOut(auth);
+          window.location.href = 'login.html';
+          return;
+        }
         if (callback) callback(userData);
       }
     }
